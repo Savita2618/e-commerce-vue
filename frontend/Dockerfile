@@ -1,88 +1,101 @@
-# =============================================================================
-# frontend/Dockerfile - Multi-stage build pour Vue.js
-# =============================================================================
+# ===================================
+# Dockerfile - Frontend Vue.js
+# Multi-stage build : Dev et Production
+# ===================================
 
-# Stage 1: Base pour le développement et la construction
-FROM node:18-alpine AS base
+# Stage 1: Build stage
+FROM node:18-alpine AS build-stage
+
+# Définir les arguments de build
+ARG NODE_ENV=production
+ARG VITE_AUTH_SERVICE_URL
+ARG VITE_PRODUCT_SERVICE_URL  
+ARG VITE_ORDER_SERVICE_URL
+
+# Créer un utilisateur non-root
+RUN addgroup -g 1001 -S nodegroup && \
+    adduser -S nodeuser -u 1001 -G nodegroup
+
+# Définir le répertoire de travail
 WORKDIR /app
 
-# Installation des dépendances système
-RUN apk add --no-cache git
-
-# Copie des fichiers de dépendances
+# Copier les fichiers de configuration des dépendances
 COPY package*.json ./
-RUN npm ci --only=production --silent && npm cache clean --force
+COPY vitest.config.js ./
+COPY vite.config.js ./
 
-# Stage 2: Développement avec hot-reload
-FROM base AS development
-WORKDIR /app
+# Installer les dépendances
+RUN npm ci --only=production && \
+    npm cache clean --force
 
-# Installation de toutes les dépendances (dev + prod)
-RUN npm ci --silent
+# Copier le code source
+COPY --chown=nodeuser:nodegroup . .
 
-# Copie du code source
-COPY . .
-
-# Création d'un utilisateur non-root pour la sécurité
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S vuejs -u 1001 -G nodejs
-
-# Changement des permissions
-RUN chown -R vuejs:nodejs /app
-USER vuejs
-
-# Exposition du port de développement
-EXPOSE 5173
-
-# Commande de développement avec hot-reload
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
-
-# Stage 3: Construction pour la production
-FROM base AS builder
-WORKDIR /app
-
-# Installation des dépendances de développement nécessaires au build
-RUN npm ci --silent
-
-# Copie du code source
-COPY . .
-
-# Construction de l'application
+# Construire l'application
 RUN npm run build
 
-# Stage 4: Production avec Nginx
-FROM nginx:1.25-alpine AS production
+# Stage 2: Development stage  
+FROM node:18-alpine AS development
 
-# Installation de curl pour les health checks
-RUN apk add --no-cache curl
+# Créer un utilisateur non-root
+RUN addgroup -g 1001 -S nodegroup && \
+    adduser -S nodeuser -u 1001 -G nodegroup
 
-# Copie de la configuration Nginx personnalisée
-COPY nginx.conf /etc/nginx/nginx.conf
+WORKDIR /app
 
-# Copie des fichiers construits depuis le stage builder
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copier les fichiers de configuration
+COPY package*.json ./
+COPY vitest.config.js ./
+COPY vite.config.js ./
 
-# Création d'un utilisateur non-root
-RUN addgroup -g 1001 -S nginx && \
-    adduser -S nginx -u 1001 -G nginx
+# Installer toutes les dépendances (dev + prod)
+RUN npm ci && npm cache clean --force
 
-# Configuration des permissions
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chown -R nginx:nginx /var/cache/nginx && \
-    chown -R nginx:nginx /var/log/nginx && \
-    chown -R nginx:nginx /etc/nginx/conf.d
-RUN touch /var/run/nginx.pid && \
-    chown -R nginx:nginx /var/run/nginx.pid
+# Copier le code source
+COPY --chown=nodeuser:nodegroup . .
 
-# Changement vers l'utilisateur non-root
-USER nginx
+# Changer vers l'utilisateur non-root
+USER nodeuser
 
-# Exposition du port
+# Exposer le port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/health || exit 1
+# Commande pour le développement
+CMD ["npm", "run", "dev"]
 
-# Commande de démarrage
-CMD ["nginx", "-g", "daemon off;"]
+# Stage 3: Production stage
+FROM nginx:alpine AS production
+
+# Installer Node.js pour le serveur proxy
+RUN apk add --no-cache nodejs npm
+
+# Créer un utilisateur non-root
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -S appuser -u 1001 -G appgroup
+
+# Copier les fichiers construits depuis le build stage
+COPY --from=build-stage /app/dist /usr/share/nginx/html
+
+# Copier le serveur proxy pour la production
+COPY --from=build-stage /app/server.cjs /app/server.cjs
+COPY --from=build-stage /app/package*.json /app/
+
+# Installer les dépendances du serveur
+WORKDIR /app
+RUN npm ci --only=production && npm cache clean --force
+
+# Copier la configuration nginx personnalisée
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Créer les répertoires nécessaires avec les bonnes permissions
+RUN mkdir -p /var/cache/nginx /var/run && \
+    chown -R appuser:appgroup /var/cache/nginx /var/run /usr/share/nginx/html /app
+
+# Changer vers l'utilisateur non-root
+USER appuser
+
+# Exposer le port
+EXPOSE 8080
+
+# Commande pour la production (serveur Node.js avec proxy)
+CMD ["node", "server.cjs"]
