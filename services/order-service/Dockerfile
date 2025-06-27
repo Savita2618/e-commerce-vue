@@ -1,70 +1,93 @@
+# ===================================
+# Dockerfile - Order Service
+# Multi-stage build : Dev et Production
+# ===================================
+
+# Stage 1: Base stage
 FROM node:18-alpine AS base
 
-# Installation des dépendances système nécessaires
+# Créer un utilisateur non-root
+RUN addgroup -g 1001 -S nodegroup && \
+    adduser -S nodeuser -u 1001 -G nodegroup
+
+# Installer les dépendances système nécessaires
 RUN apk add --no-cache \
     dumb-init \
-    curl \
-    && rm -rf /var/cache/apk/*
+    tini
 
-# Création du répertoire de travail
+# Définir le répertoire de travail
 WORKDIR /app
 
-# Création d'un utilisateur non-root
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S orderuser -u 1001 -G nodejs
-
-# Stage: Development
-FROM base AS development
-
-# Installation de nodemon pour le hot-reload
-RUN npm install -g nodemon
-
-# Copie des fichiers de dépendances
+# Copier les fichiers de configuration des dépendances
 COPY package*.json ./
 
-# Installation des dépendances (dev + prod)
-RUN npm ci --silent
+# Stage 2: Dependencies stage
+FROM base AS dependencies
 
-# Copie du code source
-COPY . .
+# Installer toutes les dépendances
+RUN npm ci && npm cache clean --force
 
-# Changement des permissions
-RUN chown -R orderuser:nodejs /app
-USER orderuser
+# Stage 3: Development stage
+FROM dependencies AS development
 
-# Exposition du port
+# Copier le code source
+COPY --chown=nodeuser:nodegroup . .
+
+# Changer vers l'utilisateur non-root
+USER nodeuser
+
+# Exposer le port
 EXPOSE 3002
+
+# Variables d'environnement pour le développement
+ENV NODE_ENV=development
+ENV PORT=3002
+
+# Commande pour le développement avec nodemon
+CMD ["npm", "run", "dev"]
+
+# Stage 4: Production build stage
+FROM dependencies AS build
+
+# Copier le code source
+COPY --chown=nodeuser:nodegroup . .
+
+# Installer uniquement les dépendances de production
+RUN npm ci --only=production && npm cache clean --force
+
+# Stage 5: Production stage
+FROM node:18-alpine AS production
+
+# Installer tini pour une gestion propre des signaux
+RUN apk add --no-cache tini
+
+# Créer un utilisateur non-root
+RUN addgroup -g 1001 -S nodegroup && \
+    adduser -S nodeuser -u 1001 -G nodegroup
+
+WORKDIR /app
+
+# Copier les dépendances et le code depuis le build stage
+COPY --from=build --chown=nodeuser:nodegroup /app/node_modules ./node_modules
+COPY --from=build --chown=nodeuser:nodegroup /app/src ./src
+COPY --from=build --chown=nodeuser:nodegroup /app/package*.json ./
+
+# Changer vers l'utilisateur non-root
+USER nodeuser
+
+# Exposer le port
+EXPOSE 3002
+
+# Variables d'environnement pour la production
+ENV NODE_ENV=production
+ENV PORT=3002
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3002/api/health || exit 1
+  CMD node -e "require('http').get('http://localhost:3002/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
-# Commande de développement
-CMD ["dumb-init", "nodemon", "src/server.js"]
+# Utiliser tini comme point d'entrée
+ENTRYPOINT ["/sbin/tini", "--"]
 
-# Stage: Production
-FROM base AS production
-
-# Copie des fichiers de dépendances
-COPY package*.json ./
-
-# Installation des dépendances de production uniquement
-RUN npm ci --only=production --silent && \
-    npm cache clean --force
-
-# Copie du code source
-COPY . .
-
-# Changement des permissions
-RUN chown -R orderuser:nodejs /app
-USER orderuser
-
-# Exposition du port
-EXPOSE 3002
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3002/api/health || exit 1
-
-# Commande de production
-CMD ["dumb-init", "node", "src/server.js"]
+# Commande pour la production
+CMD ["npm", "start"]
