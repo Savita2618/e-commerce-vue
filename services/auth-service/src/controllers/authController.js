@@ -41,7 +41,7 @@ export const register = async (req, res) => {
   
       const token = jwt.sign(
         { userId: user._id, email: user.email },
-        process.env.JWT_SECRET || 'test_secret',
+        process.env.JWT_SECRET || 'efrei_super_pass',
         { expiresIn: '24h' }
       );
   
@@ -86,7 +86,7 @@ export const login = async (req, res) => {
     // Génération du token
     const token = jwt.sign(
       { userId: user._id, email: user.email },
-      process.env.JWT_SECRET || 'test_secret',
+      process.env.JWT_SECRET || 'efrei_super_pass',
       { expiresIn: '24h' }
     );
 
