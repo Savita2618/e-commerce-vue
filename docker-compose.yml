@@ -1,10 +1,208 @@
-# =============================================================================
-# docker-compose.yml - Environnement de Développement
-# =============================================================================
+# ===================================
+# Docker Compose - Environnement de Développement
+# ===================================
 
 version: '3.8'
 
-# Réseau personnalisé pour isoler les services
+services:
+  # ===================================
+  # BASES DE DONNÉES
+  # ===================================
+  
+  mongodb-auth:
+    image: mongo:4.4
+    container_name: mongodb-auth-dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: authdb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_auth_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  mongodb-products:
+    image: mongo:4.4
+    container_name: mongodb-products-dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: productsdb
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_products_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  mongodb-orders:
+    image: mongo:4.4
+    container_name: mongodb-orders-dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: ordersdb
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongodb_orders_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===================================
+  # MICROSERVICES BACKEND
+  # ===================================
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+      target: development
+    container_name: auth-service-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb-auth:27017/authdb?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-efrei_super_pass}
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./services/auth-service:/app
+      - /app/node_modules
+    networks:
+      - ecommerce-network
+    depends_on:
+      mongodb-auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  product-service:
+    build:
+      context: ./services/product-service
+      dockerfile: Dockerfile
+      target: development
+    container_name: product-service-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb-products:27017/productsdb?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-efrei_super_pass}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./services/product-service:/app
+      - /app/node_modules
+    networks:
+      - ecommerce-network
+    depends_on:
+      mongodb-products:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  order-service:
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+      target: development
+    container_name: order-service-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb-orders:27017/ordersdb?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-efrei_super_pass}
+      VITE_PRODUCT_SERVICE_URL: http://product-service:3000
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./services/order-service:/app
+      - /app/node_modules
+    networks:
+      - ecommerce-network
+    depends_on:
+      mongodb-orders:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===================================
+  # FRONTEND
+  # ===================================
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+      args:
+        VITE_AUTH_SERVICE_URL: http://localhost:3001
+        VITE_PRODUCT_SERVICE_URL: http://localhost:3000
+        VITE_ORDER_SERVICE_URL: http://localhost:3002
+    container_name: frontend-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      VITE_AUTH_SERVICE_URL: http://auth-service:3001
+      VITE_PRODUCT_SERVICE_URL: http://product-service:3000
+      VITE_ORDER_SERVICE_URL: http://order-service:3002
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/dist
+    networks:
+      - ecommerce-network
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+
+# ===================================
+# RÉSEAUX
+# ===================================
+
 networks:
   ecommerce-network:
     driver: bridge
@@ -12,179 +210,14 @@ networks:
       config:
         - subnet: 172.20.0.0/16
 
-# Volumes pour la persistance des données
+# ===================================
+# VOLUMES
+# ===================================
+
 volumes:
-  mongodb_data:
-    driver: local
   mongodb_auth_data:
     driver: local
-  mongodb_product_data:
+  mongodb_products_data:
     driver: local
-  mongodb_order_data:
+  mongodb_orders_data:
     driver: local
-
-services:
-  # =============================================================================
-  # BASE DE DONNÉES MONGODB
-  # =============================================================================
-  mongodb:
-    image: mongo:7.0
-    container_name: ecommerce-mongodb-dev
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: admin123
-      MONGO_INITDB_DATABASE: ecommerce
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
-    networks:
-      ecommerce-network:
-        ipv4_address: 172.20.0.10
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # =============================================================================
-  # MICROSERVICE D'AUTHENTIFICATION
-  # =============================================================================
-  auth-service:
-    build:
-      context: ./services/auth-service
-      dockerfile: Dockerfile
-      target: development
-    container_name: ecommerce-auth-dev
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3001
-      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/ecommerce_auth?authSource=admin
-      JWT_SECRET: dev-secret-key-change-in-production
-      JWT_EXPIRE: 24h
-      CORS_ORIGIN: http://localhost:8080
-    ports:
-      - "3001:3001"
-    volumes:
-      - ./services/auth-service:/app
-      - /app/node_modules
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    networks:
-      ecommerce-network:
-        ipv4_address: 172.20.0.11
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # =============================================================================
-  # MICROSERVICE DES PRODUITS
-  # =============================================================================
-  product-service:
-    build:
-      context: ./services/product-service
-      dockerfile: Dockerfile
-      target: development
-    container_name: ecommerce-product-dev
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3000
-      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/ecommerce_products?authSource=admin
-      AUTH_SERVICE_URL: http://auth-service:3001
-      CORS_ORIGIN: http://localhost:8080
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./services/product-service:/app
-      - /app/node_modules
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-    networks:
-      ecommerce-network:
-        ipv4_address: 172.20.0.12
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # =============================================================================
-  # MICROSERVICE DES COMMANDES
-  # =============================================================================
-  order-service:
-    build:
-      context: ./services/order-service
-      dockerfile: Dockerfile
-      target: development
-    container_name: ecommerce-order-dev
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3002
-      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/ecommerce_orders?authSource=admin
-      AUTH_SERVICE_URL: http://auth-service:3001
-      PRODUCT_SERVICE_URL: http://product-service:3000
-      CORS_ORIGIN: http://localhost:8080
-    ports:
-      - "3002:3002"
-    volumes:
-      - ./services/order-service:/app
-      - /app/node_modules
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-      product-service:
-        condition: service_healthy
-    networks:
-      ecommerce-network:
-        ipv4_address: 172.20.0.13
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # =============================================================================
-  # FRONTEND VUE.JS
-  # =============================================================================
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: development
-    container_name: ecommerce-frontend-dev
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      VITE_API_URL: http://localhost:8080/api
-      VITE_AUTH_SERVICE_URL: http://localhost:3001/api
-      VITE_PRODUCT_SERVICE_URL: http://localhost:3000/api
-      VITE_ORDER_SERVICE_URL: http://localhost:3002/api
-    ports:
-      - "8080:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    depends_on:
-      - auth-service
-      - product-service
-      - order-service
-    networks:
-      ecommerce-network:
-        ipv4_address: 172.20.0.14

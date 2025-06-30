@@ -13,7 +13,9 @@ RUN addgroup -g 1001 -S nodegroup && \
 # Installer les dépendances système nécessaires
 RUN apk add --no-cache \
     dumb-init \
-    tini
+    tini \
+    curl \
+    wget
 
 # Définir le répertoire de travail
 WORKDIR /app
