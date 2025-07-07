@@ -1,8 +1,4 @@
-# 🚀 CONTENU À COPIER DANS .github/workflows/ci-cd.yml
 
-Remplace TOUT le contenu par ceci :
-
-```yaml
 # ===================================
 # GitHub Actions CI/CD - Pipeline Complet
 # E-commerce Microservices Docker
@@ -330,6 +326,4 @@ jobs:
           else
             echo "❌ Des problèmes ont été détectés. Vérifiez les logs ci-dessus."
           fi
-```
 
-☝️ **COPIE TOUT CE CONTENU** dans ton fichier `.github/workflows/ci-cd.yml`
