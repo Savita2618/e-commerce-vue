@@ -1,0 +1,273 @@
+# ===================================
+# GitHub Actions CI/CD - Version Simplifiée
+# Juste Build + Test + Registry (Sans déploiement SSH)
+# ===================================
+
+name: 🚀 CI/CD Pipeline Simple
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  REGISTRY: ghcr.io
+  PROJECT_NAME: ${{ github.repository }}
+  
+jobs:
+  # ===================================
+  # VALIDATE
+  # ===================================
+  
+  validate:
+    name: 🔍 Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Validate project structure
+        run: |
+          echo "🔍 Validation de la structure du projet..."
+          test -f docker-compose.yml
+          test -f docker-compose.prod.yml
+          test -f frontend/Dockerfile
+          test -f services/auth-service/Dockerfile
+          test -f services/product-service/Dockerfile
+          test -f services/order-service/Dockerfile
+          echo "✅ Structure du projet validée"
+
+  # ===================================
+  # BUILD TOUTES LES IMAGES
+  # ===================================
+
+  build:
+    name: 🏗️ Build All Services
+    runs-on: ubuntu-latest
+    needs: validate
+    strategy:
+      matrix:
+        service: [auth-service, product-service, order-service, frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            
+      - name: Set context path
+        id: context
+        run: |
+          if [ "${{ matrix.service }}" = "frontend" ]; then
+            echo "path=./frontend" >> $GITHUB_OUTPUT
+          else
+            echo "path=./services/${{ matrix.service }}" >> $GITHUB_OUTPUT
+          fi
+            
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ steps.context.outputs.path }}
+          target: production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  # ===================================
+  # TESTS
+  # ===================================
+
+  test:
+    name: 🧪 Test All Services
+    runs-on: ubuntu-latest
+    needs: validate
+    strategy:
+      matrix:
+        service: [auth-service, product-service, order-service, frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Set working directory
+        id: workdir
+        run: |
+          if [ "${{ matrix.service }}" = "frontend" ]; then
+            echo "path=./frontend" >> $GITHUB_OUTPUT
+          else
+            echo "path=./services/${{ matrix.service }}" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Install dependencies
+        working-directory: ${{ steps.workdir.outputs.path }}
+        run: npm ci
+        
+      - name: Run tests
+        working-directory: ${{ steps.workdir.outputs.path }}
+        run: |
+          if [ "${{ matrix.service }}" = "frontend" ]; then
+            npm run test:unit
+          else
+            npm test
+          fi
+        
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service }}-coverage
+          path: ${{ steps.workdir.outputs.path }}/coverage/
+
+  # ===================================
+  # SECURITY SCAN
+  # ===================================
+
+  security:
+    name: 🛡️ Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        service: [auth-service, product-service, order-service, frontend]
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/${{ matrix.service }}:${{ github.sha }}
+          format: 'table'
+          exit-code: '0'  # Ne pas faire échouer le build pour les vulnérabilités
+          
+  # ===================================
+  # INTEGRATION TEST
+  # ===================================
+
+  integration:
+    name: 🔄 Integration Tests
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Set environment variables
+        run: |
+          echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+          echo "CI_REGISTRY_IMAGE=${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}" >> $GITHUB_ENV
+          
+      - name: Run integration tests
+        run: |
+          echo "🔄 Démarrage des tests d'intégration..."
+          
+          # Créer un docker-compose.test.yml temporaire
+          cat > docker-compose.test.yml << 'EOF'
+          version: '3.8'
+          services:
+            mongodb:
+              image: mongo:4.4
+              environment:
+                MONGO_INITDB_ROOT_USERNAME: admin
+                MONGO_INITDB_ROOT_PASSWORD: password
+              ports:
+                - "27017:27017"
+                
+            auth-service:
+              image: ${CI_REGISTRY_IMAGE}/auth-service:${IMAGE_TAG}
+              environment:
+                NODE_ENV: test
+                MONGODB_URI: mongodb://admin:password@mongodb:27017/testdb?authSource=admin
+                JWT_SECRET: test_secret
+              ports:
+                - "3001:3001"
+              depends_on:
+                - mongodb
+                
+            product-service:
+              image: ${CI_REGISTRY_IMAGE}/product-service:${IMAGE_TAG}
+              environment:
+                NODE_ENV: test
+                MONGODB_URI: mongodb://admin:password@mongodb:27017/testdb?authSource=admin
+              ports:
+                - "3000:3000"
+              depends_on:
+                - mongodb
+          EOF
+          
+          # Démarrer les services
+          docker-compose -f docker-compose.test.yml up -d
+          sleep 30
+          
+          # Tests de santé
+          echo "🧪 Tests de santé des services..."
+          curl -f http://localhost:3001/api/health || exit 1
+          curl -f http://localhost:3000/api/health || exit 1
+          
+          echo "✅ Tests d'intégration réussis"
+        
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose -f docker-compose.test.yml down -v || true
+          docker system prune -f || true
+
+  # ===================================
+  # SUMMARY
+  # ===================================
+
+  summary:
+    name: 📊 Build Summary
+    runs-on: ubuntu-latest
+    needs: [build, test, security, integration]
+    if: always()
+    steps:
+      - name: Display results
+        run: |
+          echo "🎉 Pipeline Summary:"
+          echo "✅ Build: ${{ needs.build.result }}"
+          echo "✅ Tests: ${{ needs.test.result }}"
+          echo "✅ Security: ${{ needs.security.result }}"
+          echo "✅ Integration: ${{ needs.integration.result }}"
+          echo ""
+          echo "📦 Images construites:"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:${{ github.sha }}"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:${{ github.sha }}"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:${{ github.sha }}"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/frontend:${{ github.sha }}"
+          echo ""
+          echo "🚀 Pour déployer manuellement:"
+          echo "export IMAGE_TAG=${{ github.sha }}"
+          echo "export CI_REGISTRY_IMAGE=${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}"
+          echo "docker-compose -f docker-compose.prod.yml up -d"
