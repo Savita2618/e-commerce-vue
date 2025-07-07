@@ -1,6 +1,5 @@
-
 # ===================================
-# GitHub Actions CI/CD - Pipeline Complet
+# GitHub Actions CI/CD - Pipeline Corrigé  
 # E-commerce Microservices Docker
 # ===================================
 
@@ -158,8 +157,19 @@ jobs:
             npm test || echo "⚠️ Pas de tests configurés pour ${{ matrix.service }}"
           fi
         
+      # 🔧 CORRECTION: Upload coverage seulement si les fichiers existent
+      - name: Check coverage files
+        id: coverage
+        working-directory: ${{ steps.workdir.outputs.path }}
+        run: |
+          if [ -d "coverage" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        
       - name: Upload coverage reports
-        if: always()
+        if: steps.coverage.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.service }}-coverage
@@ -326,4 +336,3 @@ jobs:
           else
             echo "❌ Des problèmes ont été détectés. Vérifiez les logs ci-dessus."
           fi
-

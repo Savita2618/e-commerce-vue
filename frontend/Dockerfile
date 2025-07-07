@@ -8,52 +8,56 @@ FROM node:18-alpine AS build-stage
 
 # Définir les arguments de build
 ARG NODE_ENV=production
-ARG VITE_AUTH_SERVICE_URL
-ARG VITE_PRODUCT_SERVICE_URL
-ARG VITE_ORDER_SERVICE_URL
+ARG VITE_AUTH_SERVICE_URL=/api/auth
+ARG VITE_PRODUCT_SERVICE_URL=/api/products
+ARG VITE_ORDER_SERVICE_URL=/api/orders
 
 # Définir le répertoire de travail
 WORKDIR /app
 
 # Copier les fichiers de configuration des dépendances
 COPY package*.json ./
-COPY vitest.config.js ./
-COPY vite.config.js ./
 
-# Installer les dépendances
-RUN npm ci --only=production && \
-    npm cache clean --force
+# 🔧 CORRECTION: Installer TOUTES les dépendances (dev + prod) pour le build
+RUN npm ci && npm cache clean --force
+
+# Copier les fichiers de configuration Vite
+COPY vite.config.js ./
+COPY vitest.config.js ./
+COPY index.html ./
 
 # Copier le code source
-COPY . .
+COPY src/ ./src/
+COPY public/ ./public/
 
-# Construire l'application
+# Construire l'application avec les variables d'environnement
+ENV VITE_AUTH_SERVICE_URL=${VITE_AUTH_SERVICE_URL}
+ENV VITE_PRODUCT_SERVICE_URL=${VITE_PRODUCT_SERVICE_URL}
+ENV VITE_ORDER_SERVICE_URL=${VITE_ORDER_SERVICE_URL}
+
 RUN npm run build
 
 # ===================================
-# Stage 2: Development stage (CORRIGÉ)
+# Stage 2: Development stage
 # ===================================
 FROM node:18-alpine AS development
 
 # Installer des outils de debug
-RUN apk add --no-cache curl netcat-openbsd
+RUN apk add --no-cache curl
 
 WORKDIR /app
 
 # Copier les fichiers de configuration
 COPY package*.json ./
-COPY vitest.config.js ./
 COPY vite.config.js ./
+COPY vitest.config.js ./
+COPY index.html ./
 
 # Installer toutes les dépendances (dev + prod)
 RUN npm ci && npm cache clean --force
 
 # Copier le code source
 COPY . .
-
-# IMPORTANT : Utiliser root en développement pour éviter les problèmes de permissions
-# En production, on utilisera un utilisateur non-root dans le stage production
-USER root
 
 # Exposer le port
 EXPOSE 8080
@@ -70,37 +74,28 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "8080"]
 
 # ===================================
-# Stage 3: Production stage (Sécurisé)
+# Stage 3: Production stage (Nginx simple)
 # ===================================
 FROM nginx:alpine AS production
-
-# Installer Node.js pour le serveur proxy
-RUN apk add --no-cache nodejs npm
-
-# Créer un utilisateur non-root pour la production
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -S appuser -u 1001 -G appgroup
 
 # Copier les fichiers construits depuis le build stage
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 
-# Copier le serveur proxy pour la production
-COPY --from=build-stage /app/server.cjs /app/server.cjs
-COPY --from=build-stage /app/package*.json /app/
-
-# Installer les dépendances du serveur
-WORKDIR /app
-RUN npm ci --only=production && npm cache clean --force
-
-# Copier la configuration nginx personnalisée
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Créer les répertoires nécessaires avec les bonnes permissions
-RUN mkdir -p /var/cache/nginx /var/run && \
-    chown -R appuser:appgroup /var/cache/nginx /var/run /usr/share/nginx/html /app
-
-# Changer vers l'utilisateur non-root SEULEMENT en production
-USER appuser
+# Créer une configuration nginx simple
+RUN echo 'server { \
+    listen 8080; \
+    server_name localhost; \
+    root /usr/share/nginx/html; \
+    index index.html; \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+    location /api/ { \
+        proxy_pass http://nginx-proxy:80; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
 
 # Exposer le port
 EXPOSE 8080
@@ -109,5 +104,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8080 || exit 1
 
-# Commande pour la production (serveur Node.js avec proxy)
-CMD ["node", "server.cjs"]
+# Commande pour la production
+CMD ["nginx", "-g", "daemon off;"]
