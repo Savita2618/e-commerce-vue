@@ -1,5 +1,6 @@
-# ===================================
-# GitHub Actions CI/CD - Version DEBUG
+.# ===================================
+# GitHub Actions CI/CD - Pipeline Complet
+# E-commerce Microservices Docker
 # ===================================
 
 name: 🚀 CI/CD Pipeline
@@ -9,7 +10,7 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
-  workflow_dispatch:  # Permet déclenchement manuel
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -17,115 +18,50 @@ env:
   
 jobs:
   # ===================================
-  # DEBUG & VALIDATION
+  # VALIDATE
   # ===================================
   
-  debug:
-    name: 🔍 Debug Info
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Debug project structure
-        run: |
-          echo "=== PROJECT STRUCTURE ==="
-          echo "Working directory: $(pwd)"
-          echo "Repository: ${{ github.repository }}"
-          echo "Branch: ${{ github.ref }}"
-          echo "Commit: ${{ github.sha }}"
-          echo ""
-          echo "=== FILES CHECK ==="
-          echo "Package files:"
-          find . -name "package.json" -type f | head -10
-          find . -name "package-lock.json" -type f | head -10
-          echo ""
-          echo "Dockerfiles:"
-          find . -name "Dockerfile" -type f | head -10
-          echo ""
-          echo "=== DOCKER COMPOSE FILES ==="
-          ls -la docker-compose*.yml || echo "No docker-compose files"
-          echo ""
-          echo "=== GITHUB WORKFLOW ==="
-          ls -la .github/workflows/ || echo "No workflows directory"
-
   validate:
     name: 🔍 Validate
     runs-on: ubuntu-latest
-    needs: debug
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Validate essential files
+      - name: Validate project structure
         run: |
-          echo "🔍 Checking essential files..."
+          echo "🔍 Validation de la structure du projet..."
           
-          # Check docker-compose files
-          if [ -f "docker-compose.yml" ]; then
-            echo "✅ docker-compose.yml found"
-          else
-            echo "❌ docker-compose.yml missing"
-            exit 1
-          fi
+          # Vérifier les fichiers essentiels
+          test -f docker-compose.yml && echo "✅ docker-compose.yml" || exit 1
+          test -f docker-compose.prod.yml && echo "✅ docker-compose.prod.yml" || exit 1
           
-          if [ -f "docker-compose.prod.yml" ]; then
-            echo "✅ docker-compose.prod.yml found"
-          else
-            echo "❌ docker-compose.prod.yml missing"
-            exit 1
-          fi
-          
-          # Check services
+          # Vérifier chaque service
           for service in auth-service product-service order-service; do
-            if [ -f "services/$service/package.json" ]; then
-              echo "✅ services/$service/package.json found"
-            else
-              echo "❌ services/$service/package.json missing"
-            fi
-            
-            if [ -f "services/$service/package-lock.json" ]; then
-              echo "✅ services/$service/package-lock.json found"
-            else
-              echo "❌ services/$service/package-lock.json missing"
-            fi
-            
-            if [ -f "services/$service/Dockerfile" ]; then
-              echo "✅ services/$service/Dockerfile found"
-            else
-              echo "❌ services/$service/Dockerfile missing"
-            fi
+            test -f services/$service/package.json && echo "✅ $service/package.json" || exit 1
+            test -f services/$service/package-lock.json && echo "✅ $service/package-lock.json" || exit 1
+            test -f services/$service/Dockerfile && echo "✅ $service/Dockerfile" || exit 1
           done
           
-          # Check frontend
-          if [ -f "frontend/package.json" ]; then
-            echo "✅ frontend/package.json found"
-          else
-            echo "❌ frontend/package.json missing"
-          fi
+          # Vérifier frontend
+          test -f frontend/package.json && echo "✅ frontend/package.json" || exit 1
+          test -f frontend/package-lock.json && echo "✅ frontend/package-lock.json" || exit 1
+          test -f frontend/Dockerfile && echo "✅ frontend/Dockerfile" || exit 1
           
-          if [ -f "frontend/package-lock.json" ]; then
-            echo "✅ frontend/package-lock.json found"
-          else
-            echo "❌ frontend/package-lock.json missing"
-          fi
-          
-          if [ -f "frontend/Dockerfile" ]; then
-            echo "✅ frontend/Dockerfile found"
-          else
-            echo "❌ frontend/Dockerfile missing"
-          fi
-          
-          echo "✅ Validation completed"
+          echo "✅ Structure validée avec succès"
 
   # ===================================
-  # BUILD TEST (Un seul service d'abord)
+  # BUILD ET PUSH DES IMAGES
   # ===================================
 
-  build-test:
-    name: 🏗️ Build Test (Auth Service Only)
+  build:
+    name: 🏗️ Build & Push
     runs-on: ubuntu-latest
     needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [auth-service, product-service, order-service, frontend]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -140,31 +76,47 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Test auth-service build
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            
+      - name: Set context path
+        id: context
         run: |
-          echo "🏗️ Testing auth-service build..."
-          cd services/auth-service
-          
-          echo "Package.json content:"
-          cat package.json | head -20
-          
-          echo "Package-lock.json exists:"
-          ls -la package-lock.json
-          
-          echo "Dockerfile content:"
-          cat Dockerfile | head -20
-          
-          echo "Building Docker image..."
-          docker build --target development -t test-auth .
-          
-          echo "✅ Auth service build successful"
+          if [ "${{ matrix.service }}" = "frontend" ]; then
+            echo "path=./frontend" >> $GITHUB_OUTPUT
+          else
+            echo "path=./services/${{ matrix.service }}" >> $GITHUB_OUTPUT
+          fi
+            
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ steps.context.outputs.path }}
+          target: production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          build-args: |
+            VITE_AUTH_SERVICE_URL=${{ secrets.VITE_AUTH_SERVICE_URL || '/api/auth' }}
+            VITE_PRODUCT_SERVICE_URL=${{ secrets.VITE_PRODUCT_SERVICE_URL || '/api/products' }}
+            VITE_ORDER_SERVICE_URL=${{ secrets.VITE_ORDER_SERVICE_URL || '/api/orders' }}
 
   # ===================================
-  # TESTS SIMPLES
+  # TESTS
   # ===================================
 
-  test-simple:
-    name: 🧪 Simple Tests
+  test:
+    name: 🧪 Tests
     runs-on: ubuntu-latest
     needs: validate
     strategy:
@@ -180,56 +132,196 @@ jobs:
         with:
           node-version: '18'
           
-      - name: Test ${{ matrix.service }}
+      - name: Set working directory
+        id: workdir
         run: |
           if [ "${{ matrix.service }}" = "frontend" ]; then
-            WORKDIR="./frontend"
+            echo "path=./frontend" >> $GITHUB_OUTPUT
           else
-            WORKDIR="./services/${{ matrix.service }}"
+            echo "path=./services/${{ matrix.service }}" >> $GITHUB_OUTPUT
           fi
           
-          echo "Testing ${{ matrix.service }} in $WORKDIR"
-          
-          if [ -f "$WORKDIR/package.json" ]; then
-            echo "✅ package.json found"
-            cd $WORKDIR
-            
-            echo "Installing dependencies..."
-            npm install --prefer-offline --no-audit
-            
-            echo "Running tests..."
-            if [ "${{ matrix.service }}" = "frontend" ]; then
-              npm run test:unit || echo "No tests configured for frontend"
-            else
-              npm test || echo "No tests configured for ${{ matrix.service }}"
-            fi
-            
-            echo "✅ ${{ matrix.service }} tests completed"
+      - name: Install dependencies
+        working-directory: ${{ steps.workdir.outputs.path }}
+        run: |
+          echo "📦 Installation des dépendances pour ${{ matrix.service }}..."
+          npm ci --prefer-offline --no-audit
+        
+      - name: Run tests
+        working-directory: ${{ steps.workdir.outputs.path }}
+        run: |
+          echo "🧪 Exécution des tests pour ${{ matrix.service }}..."
+          if [ "${{ matrix.service }}" = "frontend" ]; then
+            npm run test:unit || echo "⚠️ Pas de tests configurés pour frontend"
           else
-            echo "❌ package.json not found for ${{ matrix.service }}"
-            exit 1
+            npm test || echo "⚠️ Pas de tests configurés pour ${{ matrix.service }}"
           fi
+        
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service }}-coverage
+          path: ${{ steps.workdir.outputs.path }}/coverage/
+          retention-days: 7
+
+  # ===================================
+  # SECURITY SCAN
+  # ===================================
+
+  security:
+    name: 🛡️ Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [auth-service, product-service, order-service, frontend]
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/${{ matrix.service }}:${{ github.sha }}
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+
+  # ===================================
+  # INTEGRATION TESTS
+  # ===================================
+
+  integration:
+    name: 🔄 Integration Tests
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Set environment variables
+        run: |
+          echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+          echo "CI_REGISTRY_IMAGE=${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}" >> $GITHUB_ENV
+          
+      - name: Create test environment
+        run: |
+          echo "🔄 Création de l'environnement de test..."
+          
+          # Créer docker-compose pour tests
+          cat > docker-compose.test.yml << 'EOF'
+          version: '3.8'
+          services:
+            mongodb:
+              image: mongo:4.4
+              environment:
+                MONGO_INITDB_ROOT_USERNAME: admin
+                MONGO_INITDB_ROOT_PASSWORD: password
+              ports:
+                - "27017:27017"
+                
+            auth-service:
+              image: ${CI_REGISTRY_IMAGE}/auth-service:${IMAGE_TAG}
+              environment:
+                NODE_ENV: test
+                MONGODB_URI: mongodb://admin:password@mongodb:27017/testdb?authSource=admin
+                JWT_SECRET: test_secret_for_ci
+              ports:
+                - "3001:3001"
+              depends_on:
+                - mongodb
+                
+            product-service:
+              image: ${CI_REGISTRY_IMAGE}/product-service:${IMAGE_TAG}
+              environment:
+                NODE_ENV: test
+                MONGODB_URI: mongodb://admin:password@mongodb:27017/testdb?authSource=admin
+                JWT_SECRET: test_secret_for_ci
+              ports:
+                - "3000:3000"
+              depends_on:
+                - mongodb
+          EOF
+          
+      - name: Start test services
+        run: |
+          echo "🚀 Démarrage des services de test..."
+          docker-compose -f docker-compose.test.yml up -d
+          
+          # Attendre que les services soient prêts
+          echo "⏳ Attente du démarrage des services..."
+          sleep 60
+          
+      - name: Run integration tests
+        run: |
+          echo "🧪 Exécution des tests d'intégration..."
+          
+          # Test MongoDB
+          echo "Testing MongoDB..."
+          docker exec $(docker-compose -f docker-compose.test.yml ps -q mongodb) mongo -u admin -p password --eval "db.adminCommand('ping')"
+          
+          # Test Auth Service
+          echo "Testing Auth Service..."
+          curl -f http://localhost:3001/api/health || exit 1
+          
+          # Test Product Service  
+          echo "Testing Product Service..."
+          curl -f http://localhost:3000/api/health || exit 1
+          
+          # Test d'inscription
+          echo "Testing user registration..."
+          curl -X POST http://localhost:3001/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"email":"test@ci.com","password":"password123"}' || exit 1
+          
+          echo "✅ Tests d'intégration réussis"
+        
+      - name: Cleanup test environment
+        if: always()
+        run: |
+          docker-compose -f docker-compose.test.yml down -v || true
+          docker system prune -f || true
 
   # ===================================
   # SUMMARY
   # ===================================
 
   summary:
-    name: 📊 Summary
+    name: 📊 Build Summary  
     runs-on: ubuntu-latest
-    needs: [debug, validate, build-test, test-simple]
+    needs: [validate, build, test, security, integration]
     if: always()
     steps:
       - name: Display results
         run: |
           echo "🎉 Pipeline Summary:"
-          echo "✅ Debug: ${{ needs.debug.result }}"
           echo "✅ Validate: ${{ needs.validate.result }}"
-          echo "✅ Build Test: ${{ needs.build-test.result }}"
-          echo "✅ Tests: ${{ needs.test-simple.result }}"
+          echo "✅ Build: ${{ needs.build.result }}"
+          echo "✅ Tests: ${{ needs.test.result }}"
+          echo "✅ Security: ${{ needs.security.result }}"
+          echo "✅ Integration: ${{ needs.integration.result }}"
           echo ""
-          if [ "${{ needs.build-test.result }}" = "success" ]; then
-            echo "🎉 Build is working! Ready for full pipeline."
+          echo "📦 Images construites et disponibles:"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:${{ github.sha }}"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:${{ github.sha }}"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:${{ github.sha }}"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/frontend:${{ github.sha }}"
+          echo ""
+          echo "🚀 Pour déployer manuellement:"
+          echo "export IMAGE_TAG=${{ github.sha }}"
+          echo "export CI_REGISTRY_IMAGE=${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}"
+          echo "docker-compose -f docker-compose.prod.yml up -d"
+          echo ""
+          if [ "${{ needs.build.result }}" = "success" ] && [ "${{ needs.test.result }}" = "success" ]; then
+            echo "🎉 Pipeline terminé avec succès ! Prêt pour déploiement."
           else
-            echo "❌ Build issues detected. Check logs above."
+            echo "❌ Des problèmes ont été détectés. Vérifiez les logs ci-dessus."
           fi
