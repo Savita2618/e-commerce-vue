@@ -338,11 +338,12 @@ jobs:
           fi
           cd ..
 
-  # ===================================
-  # TESTS D'INTÉGRATION SIMPLIFIÉS
-  # ===================================
+# ===================================
+# TESTS D'INTÉGRATION E-COMMERCE
+# ===================================
+
   integration:
-    name: 🔄 Tests d'Intégration
+    name: 🔄 Tests d'Intégration Réels
     runs-on: ubuntu-latest
     needs: [build, test]
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
@@ -362,57 +363,281 @@ jobs:
           echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
           echo "CI_REGISTRY_IMAGE=${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}" >> $GITHUB_ENV
           
-      - name: Test Image Availability
+      - name: Pull and Tag Images
         run: |
-          echo "🧪 Vérification de la disponibilité des images..."
+          echo "📥 Récupération des images buildées..."
           
-          # Attendre un peu que les images soient disponibles
-          sleep 30
+          # Pull les images avec SHA
+          docker pull $CI_REGISTRY_IMAGE/auth-service:$IMAGE_TAG
+          docker pull $CI_REGISTRY_IMAGE/product-service:$IMAGE_TAG
+          docker pull $CI_REGISTRY_IMAGE/order-service:$IMAGE_TAG
+          docker pull $CI_REGISTRY_IMAGE/frontend:$IMAGE_TAG
           
-          # Tester chaque image
-          for service in auth-service product-service order-service frontend; do
-            echo "Testing $service image..."
-            docker manifest inspect $CI_REGISTRY_IMAGE/$service:$IMAGE_TAG && {
-              echo "✅ $service:$IMAGE_TAG disponible"
-            } || {
-              echo "⚠️ $service:$IMAGE_TAG non trouvé, essai avec latest..."
-              docker manifest inspect $CI_REGISTRY_IMAGE/$service:latest || {
-                echo "⚠️ $service:latest non trouvé non plus"
-              }
-            }
+          # Tag pour utilisation locale
+          docker tag $CI_REGISTRY_IMAGE/auth-service:$IMAGE_TAG auth-service:latest
+          docker tag $CI_REGISTRY_IMAGE/product-service:$IMAGE_TAG product-service:latest
+          docker tag $CI_REGISTRY_IMAGE/order-service:$IMAGE_TAG order-service:latest
+          docker tag $CI_REGISTRY_IMAGE/frontend:$IMAGE_TAG frontend:latest
+          
+      - name: Create Test Environment
+        run: |
+          echo "🚀 Création de l'environnement de test complet..."
+          
+          # Créer docker-compose pour tests d'intégration
+          cat > docker-compose.test.yml << 'EOF'
+          version: '3.8'
+          
+          services:
+            # MongoDB pour chaque service
+            mongodb-auth:
+              image: mongo:4.4
+              container_name: mongodb-auth-test
+              environment:
+                MONGO_INITDB_ROOT_USERNAME: admin
+                MONGO_INITDB_ROOT_PASSWORD: password123
+              ports:
+                - "27017:27017"
+              healthcheck:
+                test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+                
+            mongodb-products:
+              image: mongo:4.4
+              container_name: mongodb-products-test
+              environment:
+                MONGO_INITDB_ROOT_USERNAME: admin
+                MONGO_INITDB_ROOT_PASSWORD: password123
+              ports:
+                - "27018:27017"
+              healthcheck:
+                test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+                
+            mongodb-orders:
+              image: mongo:4.4
+              container_name: mongodb-orders-test
+              environment:
+                MONGO_INITDB_ROOT_USERNAME: admin
+                MONGO_INITDB_ROOT_PASSWORD: password123
+              ports:
+                - "27019:27017"
+              healthcheck:
+                test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+                
+            # Auth Service
+            auth-service:
+              image: auth-service:latest
+              container_name: auth-service-test
+              ports:
+                - "3001:3001"
+              environment:
+                - MONGODB_URI=mongodb://admin:password123@mongodb-auth:27017/authdb?authSource=admin
+                - JWT_SECRET=test-secret-key-integration
+                - NODE_ENV=test
+                - PORT=3001
+              depends_on:
+                mongodb-auth:
+                  condition: service_healthy
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:3001/api/health", "||", "exit", "1"]
+                interval: 15s
+                timeout: 10s
+                retries: 5
+                
+            # Product Service
+            product-service:
+              image: product-service:latest
+              container_name: product-service-test
+              ports:
+                - "3002:3002"
+              environment:
+                - MONGODB_URI=mongodb://admin:password123@mongodb-products:27017/productsdb?authSource=admin
+                - NODE_ENV=test
+                - PORT=3002
+              depends_on:
+                mongodb-products:
+                  condition: service_healthy
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:3002/api/health", "||", "exit", "1"]
+                interval: 15s
+                timeout: 10s
+                retries: 5
+                
+            # Order Service
+            order-service:
+              image: order-service:latest
+              container_name: order-service-test
+              ports:
+                - "3003:3003"
+              environment:
+                - MONGODB_URI=mongodb://admin:password123@mongodb-orders:27017/ordersdb?authSource=admin
+                - NODE_ENV=test
+                - PORT=3003
+              depends_on:
+                mongodb-orders:
+                  condition: service_healthy
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:3003/api/health", "||", "exit", "1"]
+                interval: 15s
+                timeout: 10s
+                retries: 5
+                
+            # Frontend
+            frontend:
+              image: frontend:latest
+              container_name: frontend-test
+              ports:
+                - "3000:3000"
+              environment:
+                - VITE_API_AUTH_URL=http://localhost:3001
+                - VITE_API_PRODUCT_URL=http://localhost:3002
+                - VITE_API_ORDER_URL=http://localhost:3003
+              depends_on:
+                - auth-service
+                - product-service
+                - order-service
+          EOF
+          
+      - name: Install Docker Compose
+        run: |
+          # Installer docker-compose
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.23.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker-compose --version
+          
+      - name: Start E-commerce Application
+        run: |
+          echo "🚀 Démarrage de l'application e-commerce complète..."
+          docker-compose -f docker-compose.test.yml up -d
+          
+      - name: Wait for All Services
+        run: |
+          echo "⏳ Attente du démarrage de tous les services..."
+          
+          # Attendre 2 minutes max
+          for i in {1..24}; do
+            echo "Tentative $i/24 (5 secondes chacune)..."
+            
+            # Vérifier chaque service
+            auth_ready=$(curl -s http://localhost:3001/api/health | grep -o "ok" || echo "not_ready")
+            product_ready=$(curl -s http://localhost:3002/api/health | grep -o "ok" || echo "not_ready")
+            order_ready=$(curl -s http://localhost:3003/api/health | grep -o "ok" || echo "not_ready")
+            frontend_ready=$(curl -s http://localhost:3000/ | grep -o "html" || echo "not_ready")
+            
+            echo "Auth: $auth_ready | Product: $product_ready | Order: $order_ready | Frontend: $frontend_ready"
+            
+            if [ "$auth_ready" = "ok" ] && [ "$product_ready" = "ok" ] && [ "$order_ready" = "ok" ] && [ "$frontend_ready" = "html" ]; then
+              echo "✅ Tous les services sont prêts !"
+              break
+            fi
+            
+            if [ $i -eq 24 ]; then
+              echo "❌ Timeout - certains services ne répondent pas"
+              docker-compose -f docker-compose.test.yml ps
+              docker-compose -f docker-compose.test.yml logs
+              exit 1
+            fi
+            
+            sleep 5
           done
           
-          echo "✅ Test de disponibilité terminé"
-          
-      - name: Simple Integration Test
+      - name: Run E-commerce Integration Tests
         run: |
-          echo "🧪 Tests d'intégration de base..."
+          echo "🧪 Tests d'intégration de l'e-commerce..."
           
-          # Test MongoDB simple
-          echo "Démarrage MongoDB pour tests..."
-          docker run -d --name test-mongo \
-            -e MONGO_INITDB_ROOT_USERNAME=admin \
-            -e MONGO_INITDB_ROOT_PASSWORD=password \
-            -p 27017:27017 \
-            mongo:4.4
+          # Test 1: Inscription utilisateur
+          echo "=== Test 1: Inscription Utilisateur ==="
+          REGISTER_RESPONSE=$(curl -s -X POST http://localhost:3001/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "Test User",
+              "email": "test@integration.com",
+              "password": "password123"
+            }')
+          echo "Réponse inscription: $REGISTER_RESPONSE"
           
-          sleep 15
+          # Test 2: Connexion utilisateur
+          echo "=== Test 2: Connexion Utilisateur ==="
+          LOGIN_RESPONSE=$(curl -s -X POST http://localhost:3001/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{
+              "email": "test@integration.com",
+              "password": "password123"
+            }')
+          echo "Réponse connexion: $LOGIN_RESPONSE"
           
-          # Test MongoDB connection
-          docker exec test-mongo mongo -u admin -p password --eval "db.adminCommand('ping')" && {
-            echo "✅ MongoDB fonctionne correctement"
-          } || {
-            echo "⚠️ MongoDB test échoué, mais on continue..."
-          }
+          # Extraire le token JWT (si possible)
+          TOKEN=$(echo $LOGIN_RESPONSE | grep -o '"token":"[^"]*' | cut -d'"' -f4 || echo "")
+          echo "Token JWT: ${TOKEN:0:50}..." # Afficher seulement les 50 premiers caractères
           
-          echo "✅ Tests d'intégration de base terminés"
+          # Test 3: Liste des produits
+          echo "=== Test 3: Liste des Produits ==="
+          PRODUCTS_RESPONSE=$(curl -s http://localhost:3002/api/products)
+          echo "Réponse produits: $PRODUCTS_RESPONSE"
+          
+          # Test 4: Création d'un produit (si endpoint existe)
+          echo "=== Test 4: Création d'un Produit ==="
+          if [ -n "$TOKEN" ]; then
+            CREATE_PRODUCT_RESPONSE=$(curl -s -X POST http://localhost:3002/api/products \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $TOKEN" \
+              -d '{
+                "name": "Produit Test",
+                "price": 29.99,
+                "description": "Produit créé lors des tests d'\''intégration"
+              }')
+            echo "Réponse création produit: $CREATE_PRODUCT_RESPONSE"
+          else
+            echo "⚠️ Pas de token, skip création produit"
+          fi
+          
+          # Test 5: Liste des commandes
+          echo "=== Test 5: Liste des Commandes ==="
+          if [ -n "$TOKEN" ]; then
+            ORDERS_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3003/api/orders)
+            echo "Réponse commandes: $ORDERS_RESPONSE"
+          else
+            echo "⚠️ Pas de token, skip commandes"
+          fi
+          
+          # Test 6: Frontend accessibility
+          echo "=== Test 6: Accessibilité Frontend ==="
+          FRONTEND_CONTENT=$(curl -s http://localhost:3000/)
+          if echo "$FRONTEND_CONTENT" | grep -q "html\|HTML"; then
+            echo "✅ Frontend accessible et retourne du HTML"
+          else
+            echo "❌ Frontend ne retourne pas de HTML valide"
+          fi
+          
+          echo "🎉 Tests d'intégration e-commerce terminés !"
+          
+      - name: Show Service Logs
+        if: failure()
+        run: |
+          echo "📋 Logs des services en cas d'échec:"
+          echo "=== Auth Service ==="
+          docker-compose -f docker-compose.test.yml logs auth-service
+          echo "=== Product Service ==="
+          docker-compose -f docker-compose.test.yml logs product-service
+          echo "=== Order Service ==="
+          docker-compose -f docker-compose.test.yml logs order-service
+          echo "=== Frontend ==="
+          docker-compose -f docker-compose.test.yml logs frontend
           
       - name: Cleanup
         if: always()
         run: |
-          echo "🧹 Nettoyage..."
-          docker stop test-mongo || true
-          docker rm test-mongo || true
+          echo "🧹 Nettoyage de l'environnement de test..."
+          docker-compose -f docker-compose.test.yml down -v --remove-orphans
+          docker system prune -f
+          echo "✅ Environnement de test nettoyé !"
 
   # ===================================
   # RÉSUMÉ FINAL
