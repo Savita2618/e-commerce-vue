@@ -355,8 +355,8 @@ jobs:
                 start_period: 20s
           EOF
           
-          # Démarrer les services
-          docker-compose -f docker-compose.test.yml up -d
+          # Démarrer les services avec docker compose (nouvelle syntaxe)
+          docker compose -f docker-compose.test.yml up -d
           
       - name: Wait for services
         run: |
@@ -469,15 +469,15 @@ jobs:
         if: failure()
         run: |
           echo "📋 Logs des services en cas d'échec..."
-          docker-compose -f docker-compose.test.yml logs auth-service || true
-          docker-compose -f docker-compose.test.yml logs product-service || true
-          docker-compose -f docker-compose.test.yml logs order-service || true
-          docker-compose -f docker-compose.test.yml logs frontend || true
+          docker compose -f docker-compose.test.yml logs auth-service || true
+          docker compose -f docker-compose.test.yml logs product-service || true
+          docker compose -f docker-compose.test.yml logs order-service || true
+          docker compose -f docker-compose.test.yml logs frontend || true
           
       - name: Cleanup
         if: always()
         run: |
-          docker-compose -f docker-compose.test.yml down -v --remove-orphans || true
+          docker compose -f docker-compose.test.yml down -v --remove-orphans || true
 
   # ===================================
   # 5. DÉPLOIEMENT
