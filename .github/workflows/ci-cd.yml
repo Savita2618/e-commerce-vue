@@ -153,7 +153,6 @@ jobs:
           
           # Utiliser les secrets GitHub et créer le docker-compose dynamiquement
           cat > docker-compose.test.yml << EOF
-          version: '3.8'
 
           services:
             # ===================================
@@ -169,7 +168,7 @@ jobs:
               networks:
                 - test-network
               healthcheck:
-                test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+                test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
                 interval: 10s
                 timeout: 5s
                 retries: 10
@@ -185,7 +184,7 @@ jobs:
               networks:
                 - test-network
               healthcheck:
-                test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+                test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
                 interval: 10s
                 timeout: 5s
                 retries: 10
@@ -201,7 +200,7 @@ jobs:
               networks:
                 - test-network
               healthcheck:
-                test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+                test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
                 interval: 10s
                 timeout: 5s
                 retries: 10
