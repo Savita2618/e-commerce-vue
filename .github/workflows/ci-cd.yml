@@ -1,290 +1,241 @@
 # ===================================
-# GitHub Actions CI/CD - Correction Définitive Minuscules
-# E-commerce Microservices Docker
+# Pipeline CI/CD Corrigé - VRAIS TESTS
 # ===================================
 
-name: 🚀 CI/CD Pipeline
+name: Docker CI/CD avec Tests Réels
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
-  workflow_dispatch:
+    branches: [main, develop]
 
 env:
   REGISTRY: ghcr.io
-  # 🔧 SOLUTION: Hardcoder en minuscules
-  PROJECT_NAME: savita2618/e-commerce-vue
-  
+  PROJECT_NAME: ecommerce-docker-esgi
+
 jobs:
   # ===================================
-  # VALIDATE
+  # ÉTAPE 1 : BUILD
   # ===================================
-  
-  validate:
-    name: 🔍 Validate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Validate project structure
-        run: |
-          echo "🔍 Validation de la structure du projet..."
-          
-          # Vérifier les fichiers essentiels
-          test -f docker-compose.yml && echo "✅ docker-compose.yml" || exit 1
-          test -f docker-compose.prod.yml && echo "✅ docker-compose.prod.yml" || exit 1
-          
-          # Vérifier chaque service
-          for service in auth-service product-service order-service; do
-            test -f services/$service/package.json && echo "✅ $service/package.json" || exit 1
-            test -f services/$service/package-lock.json && echo "✅ $service/package-lock.json" || exit 1
-            test -f services/$service/Dockerfile && echo "✅ $service/Dockerfile" || exit 1
-          done
-          
-          # Vérifier frontend
-          test -f frontend/package.json && echo "✅ frontend/package.json" || exit 1
-          test -f frontend/package-lock.json && echo "✅ frontend/package-lock.json" || exit 1
-          test -f frontend/Dockerfile && echo "✅ frontend/Dockerfile" || exit 1
-          
-          echo "✅ Structure validée avec succès"
-          echo "📦 Registry: ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}"
-
-  # ===================================
-  # BUILD ET PUSH DES IMAGES
-  # ===================================
-
   build:
-    name: 🏗️ Build & Push
+    name: 🏗️ Build Images
     runs-on: ubuntu-latest
-    needs: validate
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [auth-service, product-service, order-service, frontend]
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        
-      - name: Login to GitHub Container Registry
+      - name: Login to Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/${{ matrix.service }}
-          tags: |
-            type=raw,value=latest
-            type=ref,event=branch
-            type=sha,prefix={{branch}}-,format=short
-            
-      - name: Set context path
-        id: context
+      - name: Build Images
         run: |
-          if [ "${{ matrix.service }}" = "frontend" ]; then
-            echo "path=./frontend" >> $GITHUB_OUTPUT
-          else
-            echo "path=./services/${{ matrix.service }}" >> $GITHUB_OUTPUT
-          fi
-            
-      - name: Build and push ${{ matrix.service }}
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ steps.context.outputs.path }}
-          target: production
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
-          build-args: |
-            VITE_AUTH_SERVICE_URL=${{ secrets.VITE_AUTH_SERVICE_URL || '/api/auth' }}
-            VITE_PRODUCT_SERVICE_URL=${{ secrets.VITE_PRODUCT_SERVICE_URL || '/api/products' }}
-            VITE_ORDER_SERVICE_URL=${{ secrets.VITE_ORDER_SERVICE_URL || '/api/orders' }}
+          # Build all services
+          docker-compose -f docker-compose.yml build
+          
+          # Tag images for registry
+          docker tag auth-service ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:${{ github.sha }}
+          docker tag product-service ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:${{ github.sha }}
+          docker tag order-service ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:${{ github.sha }}
+          docker tag frontend ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/frontend:${{ github.sha }}
+          
+      - name: Push Images
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/frontend:${{ github.sha }}
 
   # ===================================
-  # TESTS
+  # ÉTAPE 2 : TESTS UNITAIRES
   # ===================================
-
-  test:
-    name: 🧪 Tests
+  unit-tests:
+    name: 🧪 Tests Unitaires
     runs-on: ubuntu-latest
-    needs: validate
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [auth-service, product-service, order-service, frontend]
+    needs: build
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           
-      - name: Set working directory
-        id: workdir
+      - name: Test Auth Service
         run: |
-          if [ "${{ matrix.service }}" = "frontend" ]; then
-            echo "path=./frontend" >> $GITHUB_OUTPUT
-          else
-            echo "path=./services/${{ matrix.service }}" >> $GITHUB_OUTPUT
-          fi
+          cd auth-service
+          npm install
+          npm test
           
-      - name: Install dependencies
-        working-directory: ${{ steps.workdir.outputs.path }}
+      - name: Test Product Service
         run: |
-          echo "📦 Installation des dépendances pour ${{ matrix.service }}..."
-          npm ci --prefer-offline --no-audit
-        
-      - name: Run tests
-        working-directory: ${{ steps.workdir.outputs.path }}
+          cd product-service
+          npm install
+          npm test
+          
+      - name: Test Order Service
         run: |
-          echo "🧪 Exécution des tests pour ${{ matrix.service }}..."
-          if [ "${{ matrix.service }}" = "frontend" ]; then
-            npm run test:unit || echo "⚠️ Pas de tests configurés pour frontend"
-          else
-            npm test || echo "⚠️ Pas de tests configurés pour ${{ matrix.service }}"
-          fi
-        
-      - name: Check coverage files
-        id: coverage
-        working-directory: ${{ steps.workdir.outputs.path }}
+          cd order-service
+          npm install
+          npm test
+          
+      - name: Test Frontend
         run: |
-          if [ -d "coverage" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-        
-      - name: Upload coverage reports
-        if: steps.coverage.outputs.exists == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.service }}-coverage
-          path: ${{ steps.workdir.outputs.path }}/coverage/
-          retention-days: 7
+          cd frontend
+          npm install
+          npm run test:unit
 
   # ===================================
-  # INTEGRATION TESTS (SIMPLIFIÉ)
+  # ÉTAPE 3 : TESTS D'INTÉGRATION RÉELS
   # ===================================
-
-  integration:
-    name: 🔄 Integration Tests
+  integration-tests:
+    name: 🔄 Tests d'Intégration Réels
     runs-on: ubuntu-latest
-    needs: [build, test]
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    needs: [build, unit-tests]
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         
-      - name: Login to GitHub Container Registry
+      - name: Login to Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Set environment variables
+      - name: Pull Built Images
         run: |
-          echo "IMAGE_TAG=latest" >> $GITHUB_ENV
-          echo "CI_REGISTRY_IMAGE=${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}" >> $GITHUB_ENV
+          docker pull ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:${{ github.sha }}
+          docker pull ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:${{ github.sha }}
+          docker pull ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:${{ github.sha }}
+          docker pull ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/frontend:${{ github.sha }}
           
-      - name: Debug environment variables
+          # Tag as latest for docker-compose
+          docker tag ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:${{ github.sha }} auth-service:latest
+          docker tag ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:${{ github.sha }} product-service:latest
+          docker tag ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:${{ github.sha }} order-service:latest
+          docker tag ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/frontend:${{ github.sha }} frontend:latest
+          
+      - name: Start Test Environment
         run: |
-          echo "🔍 Variables d'environnement:"
-          echo "CI_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE"
-          echo "IMAGE_TAG: $IMAGE_TAG"
-          echo "Registry: ${{ env.REGISTRY }}"
-          echo "Project: ${{ env.PROJECT_NAME }}"
+          echo "🚀 Lancement de l'environnement de test..."
+          docker-compose -f docker-compose.test.yml up -d
           
-      - name: Test image availability  
+          echo "⏳ Attente du démarrage des services..."
+          sleep 60
+          
+      - name: Wait for Services
         run: |
-          echo "🧪 Vérification de la disponibilité des images..."
+          echo "🔍 Vérification de l'état des services..."
+          docker-compose -f docker-compose.test.yml ps
           
-          # Attendre un peu pour que les images soient disponibles
-          sleep 30
+          # Attendre que tous les services soient prêts
+          echo "⏳ Attente des health checks..."
+          timeout 300 bash -c 'until docker-compose -f docker-compose.test.yml ps | grep -q "healthy.*healthy.*healthy"; do sleep 5; done'
           
-          # Lister les packages disponibles
-          echo "📦 Images disponibles dans le registry:"
-          
-          # Tester si on peut voir les images (sans les télécharger)
-          echo "Testing auth-service image existence..."
-          docker manifest inspect $CI_REGISTRY_IMAGE/auth-service:$IMAGE_TAG || {
-            echo "⚠️ Image auth-service:$IMAGE_TAG non trouvée"
-            echo "Essai avec le tag develop..."
-            docker manifest inspect $CI_REGISTRY_IMAGE/auth-service:develop || {
-              echo "⚠️ Image auth-service:develop non trouvée non plus"
-              echo "Continuons sans tests d'intégration complexes..."
-            }
-          }
-          
-          echo "✅ Test de disponibilité terminé"
-          
-      - name: Simple integration test
+      - name: Run Integration Tests
         run: |
-          echo "🧪 Tests d'intégration simplifiés..."
+          echo "🧪 Exécution des tests d'intégration..."
           
-          # Test MongoDB simple
-          echo "Starting MongoDB for tests..."
-          docker run -d --name test-mongo \
-            -e MONGO_INITDB_ROOT_USERNAME=admin \
-            -e MONGO_INITDB_ROOT_PASSWORD=password \
-            -p 27017:27017 \
-            mongo:4.4
+          # Donner les permissions d'exécution
+          chmod +x scripts/test-integration.sh
           
-          sleep 10
+          # Exécuter les tests réels
+          ./scripts/test-integration.sh
           
-          # Test MongoDB connection
-          docker exec test-mongo mongo -u admin -p password --eval "db.adminCommand('ping')" || {
-            echo "⚠️ MongoDB test failed, but continuing..."
-          }
+      - name: Test Results
+        run: |
+          echo "📊 Résultats des tests..."
           
-          echo "✅ Tests d'intégration de base terminés"
+          # Vérifier les logs des services
+          echo "=== Logs Auth Service ==="
+          docker-compose -f docker-compose.test.yml logs auth-service-test | tail -20
+          
+          echo "=== Logs Product Service ==="
+          docker-compose -f docker-compose.test.yml logs product-service-test | tail -20
+          
+          echo "=== Logs Order Service ==="
+          docker-compose -f docker-compose.test.yml logs order-service-test | tail -20
+          
+      - name: Cleanup Test Environment
+        if: always()
+        run: |
+          echo "🧹 Nettoyage de l'environnement de test..."
+          docker-compose -f docker-compose.test.yml down -v
+          docker system prune -f
+
+  # ===================================
+  # ÉTAPE 4 : TESTS E2E (BONUS)
+  # ===================================
+  e2e-tests:
+    name: 🎭 Tests End-to-End
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Start Full Application
+        run: |
+          docker-compose up -d
+          sleep 60
+          
+      - name: Install Cypress
+        run: |
+          npm install cypress --save-dev
+          
+      - name: Run E2E Tests
+        run: |
+          npx cypress run --config baseUrl=http://localhost:3000
           
       - name: Cleanup
         if: always()
         run: |
-          docker stop test-mongo || true
-          docker rm test-mongo || true
+          docker-compose down -v
 
   # ===================================
-  # SUMMARY
+  # ÉTAPE 5 : SÉCURITÉ
   # ===================================
-
-  summary:
-    name: 📊 Build Summary  
+  security-scan:
+    name: 🔒 Scan de Sécurité
     runs-on: ubuntu-latest
-    needs: [validate, build, test, integration]
-    if: always()
+    needs: build
     steps:
-      - name: Display results
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Run Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ===================================
+  # ÉTAPE 6 : DÉPLOIEMENT
+  # ===================================
+  deploy:
+    name: 🚀 Déploiement
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, security-scan]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to Production
         run: |
-          echo "🎉 Pipeline Summary:"
-          echo "✅ Validate: ${{ needs.validate.result }}"
-          echo "✅ Build: ${{ needs.build.result }}"
-          echo "✅ Tests: ${{ needs.test.result }}"
-          echo "🔄 Integration: ${{ needs.integration.result }}"
-          echo ""
-          echo "📦 Images construites et disponibles:"
-          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:latest"
-          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:latest"
-          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:latest"
-          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/frontend:latest"
-          echo ""
-          if [ "${{ needs.build.result }}" = "success" ] && [ "${{ needs.test.result }}" = "success" ]; then
-            echo "🎉 Pipeline terminé avec succès ! Prêt pour déploiement."
-          else
-            echo "❌ Des problèmes ont été détectés. Vérifiez les logs ci-dessus."
-          fi
+          echo "🚀 Déploiement en production..."
+          echo "Images utilisées:"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:${{ github.sha }}"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:${{ github.sha }}"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:${{ github.sha }}"
+          echo "- ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/frontend:${{ github.sha }}"
