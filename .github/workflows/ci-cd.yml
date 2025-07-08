@@ -13,7 +13,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  PROJECT_NAME: ecommerce-docker-esgi
+  PROJECT_NAME: savita2618/e-commerce-vue
 
 jobs:
   # ===================================
