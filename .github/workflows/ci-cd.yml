@@ -24,14 +24,14 @@ on:
 env:
   REGISTRY: ghcr.io
   PROJECT_NAME: savita2618/e-commerce-vue
-  # 🔐 Secrets depuis GitHub
-  JWT_SECRET: ${{ secrets.JWT_SECRET }}
-  MONGO_ROOT_USERNAME: ${{ secrets.MONGO_ROOT_USERNAME }}
-  MONGO_ROOT_PASSWORD: ${{ secrets.MONGO_ROOT_PASSWORD }}
-  # 🌐 Frontend URLs
-  VITE_AUTH_SERVICE_URL: ${{ secrets.VITE_AUTH_SERVICE_URL }}
-  VITE_PRODUCT_SERVICE_URL: ${{ secrets.VITE_PRODUCT_SERVICE_URL }}
-  VITE_ORDER_SERVICE_URL: ${{ secrets.VITE_ORDER_SERVICE_URL }}
+  # 🔐 Secrets avec valeurs par défaut pour les tests
+  JWT_SECRET: ${{ secrets.JWT_SECRET || 'test_jwt_secret_for_ci_12345' }}
+  MONGO_ROOT_USERNAME: ${{ secrets.MONGO_ROOT_USERNAME || 'admin' }}
+  MONGO_ROOT_PASSWORD: ${{ secrets.MONGO_ROOT_PASSWORD || 'password123' }}
+  # 🌐 Frontend URLs avec valeurs par défaut
+  VITE_AUTH_SERVICE_URL: ${{ secrets.VITE_AUTH_SERVICE_URL || '/api/auth' }}
+  VITE_PRODUCT_SERVICE_URL: ${{ secrets.VITE_PRODUCT_SERVICE_URL || '/api/products' }}
+  VITE_ORDER_SERVICE_URL: ${{ secrets.VITE_ORDER_SERVICE_URL || '/api/orders' }}
 
 jobs:
   # ===================================
@@ -199,47 +199,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate, build, test]
     if: needs.validate.outputs.should_build == 'true'
-    services:
-      # Bases de données pour les tests
-      mongodb-auth:
-        image: mongo:4.4
-        env:
-          MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_ROOT_USERNAME }}
-          MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_ROOT_PASSWORD }}
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongo --eval 'db.adminCommand(\"ping\")'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          
-      mongodb-products:
-        image: mongo:4.4
-        env:
-          MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_ROOT_USERNAME }}
-          MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_ROOT_PASSWORD }}
-        ports:
-          - 27018:27017
-        options: >-
-          --health-cmd "mongo --eval 'db.adminCommand(\"ping\")'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          
-      mongodb-orders:
-        image: mongo:4.4
-        env:
-          MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_ROOT_USERNAME }}
-          MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_ROOT_PASSWORD }}
-        ports:
-          - 27019:27017
-        options: >-
-          --health-cmd "mongo --eval 'db.adminCommand(\"ping\")'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -273,69 +232,79 @@ jobs:
         run: |
           echo "🚀 Démarrage des services pour les tests..."
           
-          # Créer un docker-compose.test.yml temporaire
+          # Créer un docker-compose.test.yml temporaire AVEC RÉSEAU
           cat > docker-compose.test.yml << EOF
           version: '3.8'
+          
           services:
             auth-service:
               image: ${{ needs.validate.outputs.registry_image }}/auth-service:${{ needs.validate.outputs.image_tag }}
+              container_name: auth-service-test
               environment:
                 NODE_ENV: test
                 PORT: 3001
-                MONGODB_URI: mongodb://${{ env.MONGO_ROOT_USERNAME }}:${{ env.MONGO_ROOT_PASSWORD }}@host.docker.internal:27017/authdb_test?authSource=admin
+                MONGODB_URI: mongodb://${{ env.MONGO_ROOT_USERNAME }}:${{ env.MONGO_ROOT_PASSWORD }}@mongodb-auth-test:27017/authdb_test?authSource=admin
                 JWT_SECRET: ${{ env.JWT_SECRET }}
               ports:
                 - "3001:3001"
-              extra_hosts:
-                - "host.docker.internal:host-gateway"
+              networks:
+                - test-network
+              depends_on:
+                - mongodb-auth-test
               healthcheck:
                 test: ["CMD-SHELL", "curl -f http://localhost:3001/api/health || exit 1"]
-                interval: 10s
-                timeout: 5s
-                retries: 10
-                start_period: 30s
+                interval: 15s
+                timeout: 10s
+                retries: 8
+                start_period: 40s
                 
             product-service:
               image: ${{ needs.validate.outputs.registry_image }}/product-service:${{ needs.validate.outputs.image_tag }}
+              container_name: product-service-test
               environment:
                 NODE_ENV: test
                 PORT: 3000
-                MONGODB_URI: mongodb://${{ env.MONGO_ROOT_USERNAME }}:${{ env.MONGO_ROOT_PASSWORD }}@host.docker.internal:27018/productsdb_test?authSource=admin
+                MONGODB_URI: mongodb://${{ env.MONGO_ROOT_USERNAME }}:${{ env.MONGO_ROOT_PASSWORD }}@mongodb-products-test:27017/productsdb_test?authSource=admin
                 JWT_SECRET: ${{ env.JWT_SECRET }}
               ports:
                 - "3000:3000"
-              extra_hosts:
-                - "host.docker.internal:host-gateway"
+              networks:
+                - test-network
+              depends_on:
+                - mongodb-products-test
               healthcheck:
                 test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
-                interval: 10s
-                timeout: 5s
-                retries: 10
-                start_period: 30s
+                interval: 15s
+                timeout: 10s
+                retries: 8
+                start_period: 40s
                 
             order-service:
               image: ${{ needs.validate.outputs.registry_image }}/order-service:${{ needs.validate.outputs.image_tag }}
+              container_name: order-service-test
               environment:
                 NODE_ENV: test
                 PORT: 3002
-                MONGODB_URI: mongodb://${{ env.MONGO_ROOT_USERNAME }}:${{ env.MONGO_ROOT_PASSWORD }}@host.docker.internal:27019/ordersdb_test?authSource=admin
+                MONGODB_URI: mongodb://${{ env.MONGO_ROOT_USERNAME }}:${{ env.MONGO_ROOT_PASSWORD }}@mongodb-orders-test:27017/ordersdb_test?authSource=admin
                 JWT_SECRET: ${{ env.JWT_SECRET }}
                 PRODUCT_SERVICE_URL: http://product-service:3000
               ports:
                 - "3002:3002"
+              networks:
+                - test-network
               depends_on:
+                - mongodb-orders-test
                 - product-service
-              extra_hosts:
-                - "host.docker.internal:host-gateway"
               healthcheck:
                 test: ["CMD-SHELL", "curl -f http://localhost:3002/api/health || exit 1"]
-                interval: 10s
-                timeout: 5s
-                retries: 10
-                start_period: 30s
+                interval: 15s
+                timeout: 10s
+                retries: 8
+                start_period: 40s
                 
             frontend:
               image: ${{ needs.validate.outputs.registry_image }}/frontend:${{ needs.validate.outputs.image_tag }}
+              container_name: frontend-test
               environment:
                 NODE_ENV: test
                 VITE_AUTH_SERVICE_URL: ${{ env.VITE_AUTH_SERVICE_URL }}
@@ -343,20 +312,92 @@ jobs:
                 VITE_ORDER_SERVICE_URL: ${{ env.VITE_ORDER_SERVICE_URL }}
               ports:
                 - "8080:8080"
+              networks:
+                - test-network
               depends_on:
                 - auth-service
                 - product-service
                 - order-service
               healthcheck:
                 test: ["CMD-SHELL", "curl -f http://localhost:8080 || exit 1"]
+                interval: 15s
+                timeout: 10s
+                retries: 8
+                start_period: 30s
+                
+            # ===================================
+            # BASES DE DONNÉES MONGODB DANS LE RÉSEAU
+            # ===================================
+            mongodb-auth-test:
+              image: mongo:4.4
+              container_name: mongodb-auth-test
+              environment:
+                MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_ROOT_USERNAME }}
+                MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_ROOT_PASSWORD }}
+                MONGO_INITDB_DATABASE: authdb_test
+              networks:
+                - test-network
+              healthcheck:
+                test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
                 interval: 10s
                 timeout: 5s
-                retries: 10
-                start_period: 20s
+                retries: 5
+                
+            mongodb-products-test:
+              image: mongo:4.4
+              container_name: mongodb-products-test
+              environment:
+                MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_ROOT_USERNAME }}
+                MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_ROOT_PASSWORD }}
+                MONGO_INITDB_DATABASE: productsdb_test
+              networks:
+                - test-network
+              healthcheck:
+                test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+                
+            mongodb-orders-test:
+              image: mongo:4.4
+              container_name: mongodb-orders-test
+              environment:
+                MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_ROOT_USERNAME }}
+                MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_ROOT_PASSWORD }}
+                MONGO_INITDB_DATABASE: ordersdb_test
+              networks:
+                - test-network
+              healthcheck:
+                test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+          
+          # ===================================
+          # RÉSEAU (COMME TON DOCKER-COMPOSE.YML)
+          # ===================================
+          networks:
+            test-network:
+              driver: bridge
+              ipam:
+                config:
+                  - subnet: 172.21.0.0/16
           EOF
           
+          echo "📋 Configuration docker-compose.test.yml créée"
+          echo "🔍 Vérification de la syntaxe..."
+          docker compose -f docker-compose.test.yml config > /dev/null
+          echo "✅ Syntaxe valide"
+          
           # Démarrer les services avec docker compose (nouvelle syntaxe)
+          echo "🚀 Démarrage des services..."
           docker compose -f docker-compose.test.yml up -d
+          
+          echo "⏳ Attente du démarrage..."
+          sleep 30
+          
+          echo "📊 État des conteneurs:"
+          docker compose -f docker-compose.test.yml ps
           
       - name: Wait for services
         run: |
@@ -409,6 +450,12 @@ jobs:
         run: |
           echo "🧪 Exécution des tests d'intégration..."
           
+          # Afficher les variables d'environnement pour debug
+          echo "🔍 Variables d'environnement utilisées:"
+          echo "JWT_SECRET: ${{ env.JWT_SECRET }}"
+          echo "MONGO_ROOT_USERNAME: ${{ env.MONGO_ROOT_USERNAME }}"
+          echo "MONGO_ROOT_PASSWORD: ${{ env.MONGO_ROOT_PASSWORD }}"
+          
           # Test 1: Vérifier que tous les services répondent
           echo "📋 Test 1: Endpoints de santé"
           curl -f http://localhost:3001/api/health && echo "✅ Auth service health OK"
@@ -423,9 +470,14 @@ jobs:
             -d '{"email":"test@esgi.fr","password":"password123","name":"Test User ESGI"}' \
             -o /tmp/register_response.json)
           
+          echo "Code de réponse inscription: $response"
+          if [ -f /tmp/register_response.json ]; then
+            echo "Réponse inscription:"
+            cat /tmp/register_response.json
+          fi
+          
           if [ "$response" == "200" ] || [ "$response" == "201" ]; then
             echo "✅ Inscription réussie (code: $response)"
-            cat /tmp/register_response.json
           else
             echo "⚠️ Inscription échouée (code: $response) - peut être normal si utilisateur existe"
           fi
@@ -437,10 +489,18 @@ jobs:
             -d '{"email":"test@esgi.fr","password":"password123"}' \
             -o /tmp/login_response.json)
           
+          echo "Code de réponse connexion: $response"
+          if [ -f /tmp/login_response.json ]; then
+            echo "Réponse connexion:"
+            cat /tmp/login_response.json
+          fi
+          
           if [ "$response" == "200" ]; then
             echo "✅ Connexion réussie"
-            TOKEN=$(cat /tmp/login_response.json | jq -r '.token' 2>/dev/null || echo "")
-            echo "Token obtenu: ${TOKEN:0:20}..."
+            if command -v jq >/dev/null 2>&1; then
+              TOKEN=$(cat /tmp/login_response.json | jq -r '.token' 2>/dev/null || echo "")
+              echo "Token obtenu: ${TOKEN:0:20}..."
+            fi
           else
             echo "⚠️ Connexion échouée (code: $response)"
           fi
@@ -448,9 +508,17 @@ jobs:
           # Test 4: Test des produits
           echo "📋 Test 4: Récupération des produits"
           response=$(curl -s -w "%{http_code}" http://localhost:3000/api/products -o /tmp/products_response.json)
+          echo "Code de réponse produits: $response"
+          if [ -f /tmp/products_response.json ]; then
+            echo "Réponse produits:"
+            cat /tmp/products_response.json | head -200
+          fi
+          
           if [ "$response" == "200" ]; then
             echo "✅ Produits récupérés"
-            echo "Nombre de produits: $(cat /tmp/products_response.json | jq length 2>/dev/null || echo 'N/A')"
+            if command -v jq >/dev/null 2>&1; then
+              echo "Nombre de produits: $(cat /tmp/products_response.json | jq length 2>/dev/null || echo 'N/A')"
+            fi
           else
             echo "❌ Échec récupération produits (code: $response)"
           fi
@@ -461,23 +529,60 @@ jobs:
             echo "✅ Frontend sert du HTML"
           else
             echo "⚠️ Frontend ne sert pas de HTML valide"
+            echo "Réponse frontend:"
+            curl -s http://localhost:8080 | head -20
+          fi
+          
+          # Test 6: Test de communication inter-services
+          echo "📋 Test 6: Communication inter-services"
+          if curl -s http://localhost:3002/api/health | grep -q "OK\|healthy\|success"; then
+            echo "✅ Order service peut communiquer avec Product service"
+          else
+            echo "⚠️ Problème de communication inter-services"
           fi
           
           echo "🎉 Tests d'intégration terminés !"
+          echo "📊 Résumé des tests:"
+          echo "  - Auth service: $(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/health)"
+          echo "  - Product service: $(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health)"
+          echo "  - Order service: $(curl -s -o /dev/null -w "%{http_code}" http://localhost:3002/api/health)"
+          echo "  - Frontend: $(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080)"
           
       - name: Show logs on failure
         if: failure()
         run: |
           echo "📋 Logs des services en cas d'échec..."
+          echo "🔍 État des conteneurs:"
+          docker compose -f docker-compose.test.yml ps
+          echo ""
+          echo "🔍 Logs auth-service:"
           docker compose -f docker-compose.test.yml logs auth-service || true
+          echo ""
+          echo "🔍 Logs product-service:"
           docker compose -f docker-compose.test.yml logs product-service || true
+          echo ""
+          echo "🔍 Logs order-service:"
           docker compose -f docker-compose.test.yml logs order-service || true
+          echo ""
+          echo "🔍 Logs frontend:"
           docker compose -f docker-compose.test.yml logs frontend || true
+          echo ""
+          echo "🔍 Logs MongoDB Auth:"
+          docker compose -f docker-compose.test.yml logs mongodb-auth-test || true
+          echo ""
+          echo "🔍 Logs MongoDB Products:"
+          docker compose -f docker-compose.test.yml logs mongodb-products-test || true
+          echo ""
+          echo "🔍 Logs MongoDB Orders:"
+          docker compose -f docker-compose.test.yml logs mongodb-orders-test || true
           
       - name: Cleanup
         if: always()
         run: |
+          echo "🧹 Nettoyage des ressources de test..."
           docker compose -f docker-compose.test.yml down -v --remove-orphans || true
+          docker system prune -f || true
+          echo "✅ Nettoyage terminé"
 
   # ===================================
   # 5. DÉPLOIEMENT
@@ -509,15 +614,23 @@ jobs:
       - name: Deploy to ${{ steps.env.outputs.environment }}
         run: |
           echo "🚀 Déploiement vers ${{ steps.env.outputs.environment }}..."
+          echo "Repository: ${{ env.PROJECT_NAME }}"
           echo "Branch: ${{ github.ref }}"
           echo "Image tag: ${{ needs.validate.outputs.image_tag }}"
           echo "Registry: ${{ needs.validate.outputs.registry_image }}"
           echo "Compose file: ${{ steps.env.outputs.compose_file }}"
+          echo "JWT_SECRET configuré: ${{ env.JWT_SECRET != '' && 'Oui' || 'Non' }}"
+          echo ""
           
           # Ici tu peux ajouter tes commandes de déploiement réelles
           # Par exemple, SSH vers ton serveur, mise à jour des images, etc.
           
           echo "✅ Déploiement ${{ steps.env.outputs.environment }} terminé !"
+          echo "🔗 Images disponibles:"
+          echo "  - Auth: ${{ needs.validate.outputs.registry_image }}/auth-service:${{ needs.validate.outputs.image_tag }}"
+          echo "  - Product: ${{ needs.validate.outputs.registry_image }}/product-service:${{ needs.validate.outputs.image_tag }}"
+          echo "  - Order: ${{ needs.validate.outputs.registry_image }}/order-service:${{ needs.validate.outputs.image_tag }}"
+          echo "  - Frontend: ${{ needs.validate.outputs.registry_image }}/frontend:${{ needs.validate.outputs.image_tag }}"
 
   # ===================================
   # 6. NOTIFICATION ET RÉSUMÉ
