@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # ===================================
-# Script d'initialisation des secrets Docker
+# Script d'initialisation simplifié
 # ===================================
 
 set -e
 
-# Couleurs pour les logs
+# Couleurs
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -29,115 +29,109 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Fonction pour générer un mot de passe sécurisé
+# Générer un mot de passe sécurisé
 generate_password() {
     openssl rand -base64 32 | tr -d "=+/" | cut -c1-25
 }
 
-# Fonction pour créer un secret Docker
-create_secret() {
-    local secret_name=$1
-    local secret_value=$2
-    
-    if docker secret inspect $secret_name >/dev/null 2>&1; then
-        log_warning "Secret '$secret_name' existe déjà"
-    else
-        echo "$secret_value" | docker secret create $secret_name -
-        log_success "Secret '$secret_name' créé"
-    fi
-}
-
-# Fonction pour créer un secret interactif
-create_interactive_secret() {
-    local secret_name=$1
-    local description=$2
-    
-    echo -n "Entrez $description: "
-    read -s secret_value
-    echo
-    
-    if [ -z "$secret_value" ]; then
-        log_error "Valeur vide pour $description"
-        return 1
-    fi
-    
-    create_secret $secret_name "$secret_value"
-}
-
 # Fonction principale
 main() {
-    log_info "Initialisation des secrets Docker pour la production"
-    
-    # Vérifier que Docker Swarm est initialisé
-    if ! docker node ls >/dev/null 2>&1; then
-        log_info "Initialisation de Docker Swarm..."
-        docker swarm init --advertise-addr 127.0.0.1
-        log_success "Docker Swarm initialisé"
-    fi
-    
-    echo
-    log_info "Configuration des secrets de production..."
+    log_info "🚀 Initialisation de l'environnement de production"
     echo
     
-    # Secret JWT
+    # Générer les secrets
     if [ -z "$JWT_SECRET" ]; then
-        log_info "Génération automatique du JWT_SECRET..."
         JWT_SECRET=$(generate_password)
-        log_success "JWT_SECRET généré automatiquement"
+        log_success "JWT_SECRET généré: ${JWT_SECRET:0:8}..."
     fi
-    create_secret "jwt_secret" "$JWT_SECRET"
     
-    # Utilisateur root MongoDB
     if [ -z "$MONGO_ROOT_USERNAME" ]; then
-        echo -n "Nom d'utilisateur root MongoDB [admin]: "
+        echo -n "Nom d'utilisateur MongoDB [admin]: "
         read MONGO_ROOT_USERNAME
         MONGO_ROOT_USERNAME=${MONGO_ROOT_USERNAME:-admin}
     fi
-    create_secret "mongo_root_username" "$MONGO_ROOT_USERNAME"
     
-    # Mot de passe root MongoDB
     if [ -z "$MONGO_ROOT_PASSWORD" ]; then
-        log_info "Génération automatique du mot de passe MongoDB..."
         MONGO_ROOT_PASSWORD=$(generate_password)
-        log_success "Mot de passe MongoDB généré automatiquement"
-    fi
-    create_secret "mongo_root_password" "$MONGO_ROOT_PASSWORD"
-    
-    # Secrets SSL (optionnels)
-    echo
-    log_info "Configuration SSL (optionnel)..."
-    echo -n "Voulez-vous configurer SSL ? [y/N]: "
-    read configure_ssl
-    
-    if [ "$configure_ssl" = "y" ] || [ "$configure_ssl" = "Y" ]; then
-        if [ -f "ssl/server.crt" ] && [ -f "ssl/server.key" ]; then
-            create_secret "ssl_cert" "$(cat ssl/server.crt)"
-            create_secret "ssl_key" "$(cat ssl/server.key)"
-            log_success "Certificats SSL configurés"
-        else
-            log_warning "Certificats SSL non trouvés dans ./ssl/"
-            log_info "Pour générer des certificats auto-signés:"
-            log_info "mkdir -p ssl"
-            log_info "openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ssl/server.key -out ssl/server.crt"
-        fi
+        log_success "Mot de passe MongoDB généré: ${MONGO_ROOT_PASSWORD:0:8}..."
     fi
     
-    echo
-    log_success "Configuration des secrets terminée"
-    echo
-    log_info "Secrets créés:"
-    docker secret ls --format "table {{.Name}}\t{{.CreatedAt}}"
+    # Créer le fichier .env.prod
+    log_info "🔧 Création du fichier .env.prod..."
     
+    rm -f .env.prod
+    
+    echo "# Variables d'environnement - Production" > .env.prod
+    echo "NODE_ENV=production" >> .env.prod
+    echo "COMPOSE_PROJECT_NAME=ecommerce-prod" >> .env.prod
+    echo "" >> .env.prod
+    echo "# Docker Registry & Images" >> .env.prod
+    echo "REGISTRY=ghcr.io" >> .env.prod
+    echo "GITHUB_REPOSITORY=savita2618/e-commerce-vue" >> .env.prod
+    echo "IMAGE_TAG=latest" >> .env.prod
+    echo "" >> .env.prod
+    echo "# JWT Configuration" >> .env.prod
+    echo "JWT_SECRET=$JWT_SECRET" >> .env.prod
+    echo "" >> .env.prod
+    echo "# MongoDB Configuration" >> .env.prod
+    echo "MONGO_ROOT_USERNAME=$MONGO_ROOT_USERNAME" >> .env.prod
+    echo "MONGO_ROOT_PASSWORD=$MONGO_ROOT_PASSWORD" >> .env.prod
+    echo "" >> .env.prod
+    echo "# URIs MongoDB pour production" >> .env.prod
+    echo "MONGODB_URI_AUTH=mongodb://$MONGO_ROOT_USERNAME:$MONGO_ROOT_PASSWORD@mongodb-auth:27017/authdb?authSource=admin" >> .env.prod
+    echo "MONGODB_URI_PRODUCTS=mongodb://$MONGO_ROOT_USERNAME:$MONGO_ROOT_PASSWORD@mongodb-products:27017/productsdb?authSource=admin" >> .env.prod
+    echo "MONGODB_URI_ORDERS=mongodb://$MONGO_ROOT_USERNAME:$MONGO_ROOT_PASSWORD@mongodb-orders:27017/ordersdb?authSource=admin" >> .env.prod
+    echo "" >> .env.prod
+    echo "# Services URLs" >> .env.prod
+    echo "AUTH_SERVICE_URL=http://auth-service:3001" >> .env.prod
+    echo "PRODUCT_SERVICE_URL=http://product-service:3000" >> .env.prod
+    echo "ORDER_SERVICE_URL=http://order-service:3002" >> .env.prod
+    echo "" >> .env.prod
+    echo "# Frontend Configuration" >> .env.prod
+    echo "VITE_AUTH_SERVICE_URL=http://localhost:3001" >> .env.prod
+    echo "VITE_PRODUCT_SERVICE_URL=http://localhost:3000" >> .env.prod
+    echo "VITE_ORDER_SERVICE_URL=http://localhost:3002" >> .env.prod
+    echo "" >> .env.prod
+    echo "# Ports" >> .env.prod
+    echo "AUTH_SERVICE_PORT=3001" >> .env.prod
+    echo "PRODUCT_SERVICE_PORT=3000" >> .env.prod
+    echo "ORDER_SERVICE_PORT=3002" >> .env.prod
+    echo "FRONTEND_PORT=8080" >> .env.prod
+    echo "" >> .env.prod
+    echo "# Debug" >> .env.prod
+    echo "DEBUG=" >> .env.prod
+    echo "LOG_LEVEL=info" >> .env.prod
+    echo "" >> .env.prod
+    echo "# Sécurité" >> .env.prod
+    echo "SECURE_COOKIES=true" >> .env.prod
+    echo "CORS_ORIGIN=http://localhost:8080" >> .env.prod
+    echo "" >> .env.prod
+    echo "# Monitoring" >> .env.prod
+    echo "HEALTH_CHECK_TIMEOUT=30s" >> .env.prod
+    echo "HEALTH_CHECK_INTERVAL=30s" >> .env.prod
+    echo "HEALTH_CHECK_RETRIES=3" >> .env.prod
+    
+    log_success "✅ Fichier .env.prod créé avec succès"
+    
+    # Afficher les informations finales
+    log_success "🎉 Initialisation terminée!"
     echo
-    log_info "Variables d'environnement pour la production:"
-    echo "export MONGO_ROOT_USERNAME='$MONGO_ROOT_USERNAME'"
-    echo "export JWT_SECRET='$JWT_SECRET'"
+    log_info "=== PROCHAINES ÉTAPES ==="
+    log_info "1. Vérifiez le fichier .env.prod généré"
+    log_info "2. Lancez le déploiement avec:"
+    log_info "   ./scripts/deploy-registry.sh"
+    log_info "   OU"
+    log_info "   ./scripts/deploy-docker.sh production"
     echo
-    log_warning "Sauvegardez ces informations dans un endroit sûr!"
+    log_info "=== INFORMATIONS IMPORTANTES ==="
+    log_info "🔐 JWT Secret: ${JWT_SECRET:0:8}..."
+    log_info "🗄️  MongoDB User: $MONGO_ROOT_USERNAME"
+    log_info "🔑 MongoDB Password: ${MONGO_ROOT_PASSWORD:0:8}..."
+    echo
+    log_warning "⚠️  SAUVEGARDEZ CES INFORMATIONS!"
+    log_warning "⚠️  Le fichier .env.prod contient des informations sensibles"
+    echo
 }
-
-# Gestion des erreurs
-trap 'log_error "Erreur lors de la création des secrets"; exit 1' ERR
 
 # Exécution
 main "$@"
