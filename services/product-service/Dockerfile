@@ -23,8 +23,6 @@ WORKDIR /app
 # Copier les fichiers de configuration des dépendances
 COPY package*.json ./
 
-RUN echo "# Docker environment variables loaded from docker-compose" > .env
-
 # Stage 2: Dependencies stage
 FROM base AS dependencies
 
