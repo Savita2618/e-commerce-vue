@@ -31,8 +31,8 @@ jobs:
       - name: Validate project structure
         run: |
           echo "🔍 Validation de la structure du projet..."
-          test -f docker-compose.yml && echo "✅ docker-compose.yml" || exit 1
-          test -f docker-compose.prod.yml && echo "✅ docker-compose.prod.yml" || exit 1
+          test -f docker compose.yml && echo "✅ docker-compose.yml" || exit 1
+          test -f docker compose.prod.yml && echo "✅ docker-compose.prod.yml" || exit 1
           
           for service in auth-service product-service order-service; do
             test -f services/$service/package.json && echo "✅ $service/package.json" || exit 1
@@ -261,7 +261,7 @@ jobs:
       - name: Start services with Docker Compose
         run: |
           echo "🚀 Démarrage des services avec Docker Compose..."
-          docker-compose -f docker-compose.yml up -d --build || true
+          docker compose -f docker-compose.yml up -d --build || true
           echo "⏳ Attente du démarrage des services (60 secondes)..."
           sleep 60
 
@@ -346,14 +346,14 @@ jobs:
           echo "🔍 Logs par service:"
           for service in auth-service product-service order-service frontend; do
             echo "=== LOGS $service ==="
-            docker-compose logs --tail=20 $service || echo "Pas de logs pour $service"
+            docker compose logs --tail=20 $service || echo "Pas de logs pour $service"
           done
 
       - name: Cleanup services
         if: always()
         run: |
           echo "🧹 Nettoyage..."
-          docker-compose down -v --remove-orphans || true
+          docker compose down -v --remove-orphans || true
           docker system prune -f || true
 
   # ===================================
