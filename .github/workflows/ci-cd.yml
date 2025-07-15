@@ -420,7 +420,7 @@ jobs:
         run: |
           echo "🗄️ === TEST DES OPÉRATIONS MONGODB ==="
           
-          # Test d'insertion dans chaque base avec syntaxe corrigée
+          # Test d'insertion dans chaque base avec syntaxe MongoDB 4.4 correcte
           echo "Testing MongoDB data operations..."
           
           # Test auth database
@@ -433,9 +433,9 @@ jobs:
             --eval "
               db = db.getSiblingDB('authdb');
               db.users.insertOne({name: 'testuser', email: 'test@example.com'});
-              var count = db.users.countDocuments();
+              var count = db.users.count();
               print('Auth DB: ' + count + ' users');
-            " 2>/dev/null && echo "✅ Auth DB operations OK" || echo "❌ Auth DB operations failed"
+            " && echo "✅ Auth DB operations OK" || echo "❌ Auth DB operations failed"
           
           # Test products database
           echo "Testing products database operations..."
@@ -447,9 +447,9 @@ jobs:
             --eval "
               db = db.getSiblingDB('productsdb');
               db.products.insertOne({name: 'testproduct', price: 29.99});
-              var count = db.products.countDocuments();
+              var count = db.products.count();
               print('Products DB: ' + count + ' products');
-            " 2>/dev/null && echo "✅ Products DB operations OK" || echo "❌ Products DB operations failed"
+            " && echo "✅ Products DB operations OK" || echo "❌ Products DB operations failed"
           
           # Test orders database
           echo "Testing orders database operations..."
@@ -461,9 +461,9 @@ jobs:
             --eval "
               db = db.getSiblingDB('ordersdb');
               db.orders.insertOne({userId: 'testuser', total: 29.99});
-              var count = db.orders.countDocuments();
+              var count = db.orders.count();
               print('Orders DB: ' + count + ' orders');
-            " 2>/dev/null && echo "✅ Orders DB operations OK" || echo "❌ Orders DB operations failed"
+            " && echo "✅ Orders DB operations OK" || echo "❌ Orders DB operations failed"
           
           echo "🎉 Tests des opérations MongoDB terminés"
 
