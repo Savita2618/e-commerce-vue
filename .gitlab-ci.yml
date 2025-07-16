@@ -10,7 +10,6 @@ stages:
 
 variables:
   REGISTRY: $CI_REGISTRY
-  PROJECT_NAME: $CI_PROJECT_PATH
   IMAGE_TAG: $CI_PIPELINE_ID
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
@@ -42,11 +41,12 @@ build-auth-service:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - echo "🏗️ Build de auth-service..."
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
     - cd services/auth-service
-    - docker build --target production -t $CI_REGISTRY/$PROJECT_NAME/auth-service:$IMAGE_TAG .
-    - docker tag $CI_REGISTRY/$PROJECT_NAME/auth-service:$IMAGE_TAG $CI_REGISTRY/$PROJECT_NAME/auth-service:latest
-    - docker push $CI_REGISTRY/$PROJECT_NAME/auth-service:$IMAGE_TAG
-    - docker push $CI_REGISTRY/$PROJECT_NAME/auth-service:latest
+    - docker build --target production -t $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:$IMAGE_TAG .
+    - docker tag $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:$IMAGE_TAG $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:latest
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:$IMAGE_TAG
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:latest
     - echo "✅ Build auth-service terminé"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
@@ -61,11 +61,12 @@ build-product-service:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - echo "🏗️ Build de product-service..."
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
     - cd services/product-service
-    - docker build --target production -t $CI_REGISTRY/$PROJECT_NAME/product-service:$IMAGE_TAG .
-    - docker tag $CI_REGISTRY/$PROJECT_NAME/product-service:$IMAGE_TAG $CI_REGISTRY/$PROJECT_NAME/product-service:latest
-    - docker push $CI_REGISTRY/$PROJECT_NAME/product-service:$IMAGE_TAG
-    - docker push $CI_REGISTRY/$PROJECT_NAME/product-service:latest
+    - docker build --target production -t $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$IMAGE_TAG .
+    - docker tag $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$IMAGE_TAG $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$IMAGE_TAG
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest
     - echo "✅ Build product-service terminé"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
@@ -80,11 +81,12 @@ build-order-service:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - echo "🏗️ Build de order-service..."
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
     - cd services/order-service
-    - docker build --target production -t $CI_REGISTRY/$PROJECT_NAME/order-service:$IMAGE_TAG .
-    - docker tag $CI_REGISTRY/$PROJECT_NAME/order-service:$IMAGE_TAG $CI_REGISTRY/$PROJECT_NAME/order-service:latest
-    - docker push $CI_REGISTRY/$PROJECT_NAME/order-service:$IMAGE_TAG
-    - docker push $CI_REGISTRY/$PROJECT_NAME/order-service:latest
+    - docker build --target production -t $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:$IMAGE_TAG .
+    - docker tag $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:$IMAGE_TAG $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:latest
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:$IMAGE_TAG
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:latest
     - echo "✅ Build order-service terminé"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
@@ -96,14 +98,15 @@ build-frontend:
   services:
     - docker:dind
   before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_User --password-stdin $CI_REGISTRY
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - echo "🏗️ Build de frontend..."
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
     - cd frontend
-    - docker build --target production -t $CI_REGISTRY/$PROJECT_NAME/frontend:$IMAGE_TAG .
-    - docker tag $CI_REGISTRY/$PROJECT_NAME/frontend:$IMAGE_TAG $CI_REGISTRY/$PROJECT_NAME/frontend:latest
-    - docker push $CI_REGISTRY/$PROJECT_NAME/frontend:$IMAGE_TAG
-    - docker push $CI_REGISTRY/$PROJECT_NAME/frontend:latest
+    - docker build --target production -t $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:$IMAGE_TAG .
+    - docker tag $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:$IMAGE_TAG $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:latest
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:$IMAGE_TAG
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:latest
     - echo "✅ Build frontend terminé"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
