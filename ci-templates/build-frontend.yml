@@ -1,15 +1,15 @@
 # ===================================
-# Template Build - Auth Service
+# Template Build - Frontend Vue.js
 # ===================================
 
-.build-template-auth:
+.build-template-frontend:
   image: docker:latest
   services:
     - docker:dind
   variables:
-    SERVICE_NAME: auth-service
-    SERVICE_PATH: services/auth-service
-    DOCKERFILE_PATH: services/auth-service/Dockerfile
+    SERVICE_NAME: frontend
+    SERVICE_PATH: frontend
+    DOCKERFILE_PATH: frontend/Dockerfile
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
     - apk add --no-cache git
@@ -26,6 +26,7 @@
     # Vérifier la structure
     - ls -la $SERVICE_PATH/
     - cat $SERVICE_PATH/package.json | head -10
+    - ls -la $SERVICE_PATH/src/ || echo "Pas de dossier src/"
     
     # Build de l'image avec tags multiples
     - docker build 
@@ -34,6 +35,9 @@
       --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_TAG
       --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$CI_COMMIT_SHORT_SHA
       --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_LATEST
+      --build-arg VITE_AUTH_SERVICE_URL=$VITE_AUTH_SERVICE_URL
+      --build-arg VITE_PRODUCT_SERVICE_URL=$VITE_PRODUCT_SERVICE_URL
+      --build-arg VITE_ORDER_SERVICE_URL=$VITE_ORDER_SERVICE_URL
       --file $DOCKERFILE_PATH
       $SERVICE_PATH/
     
@@ -47,11 +51,12 @@
     - echo "🧹 Nettoyage des images locales..."
     - docker system prune -f || true
   cache:
-    key: $CI_COMMIT_REF_SLUG-auth
+    key: $CI_COMMIT_REF_SLUG-frontend
     paths:
       - .docker/
   artifacts:
     when: always
     paths:
       - $SERVICE_PATH/package.json
+      - $SERVICE_PATH/vite.config.js
     expire_in: 1 hour
