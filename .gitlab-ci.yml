@@ -119,7 +119,7 @@ build-frontend:
 
 test-auth-service:
   stage: test
-  image: node:18-slim
+  image: node:16-slim
   script:
     - echo "🧪 Tests pour auth-service..."
     - cd services/auth-service
@@ -132,7 +132,7 @@ test-auth-service:
 
 test-product-service:
   stage: test
-  image: node:18-slim
+  image: node:16-slim
   script:
     - echo "🧪 Tests pour product-service..."
     - cd services/product-service
@@ -145,7 +145,7 @@ test-product-service:
 
 test-order-service:
   stage: test
-  image: node:18-slim
+  image: node:16-slim
   script:
     - echo "🧪 Tests pour order-service..."
     - cd services/order-service
@@ -158,7 +158,7 @@ test-order-service:
 
 test-frontend:
   stage: test
-  image: node:18-slim
+  image: node:16-slim
   script:
     - echo "🧪 Tests pour frontend..."
     - cd frontend
