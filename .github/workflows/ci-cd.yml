@@ -149,6 +149,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+
+      - name: Install system dependencies for MongoDB Memory Server
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 make g++ libc6-dev
           
       - name: Set working directory
         id: workdir
@@ -163,7 +168,7 @@ jobs:
         working-directory: ${{ steps.workdir.outputs.path }}
         run: npm ci --prefer-offline --no-audit
         
-      - name: Run tests
+      - name: Run tests with MongoDB Memory Server support
         working-directory: ${{ steps.workdir.outputs.path }}
         run: |
           echo "🧪 Exécution des tests pour ${{ matrix.service }}..."
@@ -172,6 +177,15 @@ jobs:
           else
             npm test || echo "⚠️ Pas de tests configurés pour ${{ matrix.service }}"
           fi
+        env:
+          # 🔧 AJOUT: Variables d'environnement pour MongoDB Memory Server
+          NODE_ENV: test
+          MONGOMS_DOWNLOAD_MIRROR: https://fastdl.mongodb.org
+          MONGOMS_VERSION: 4.4.18
+          MONGOMS_PREFER_GLOBAL_PATH: 1
+          # Optimisation pour CI
+          MONGOMS_DOWNLOAD_URL: https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2004-4.4.18.tgz
+        
         
       - name: Check coverage files
         id: coverage
