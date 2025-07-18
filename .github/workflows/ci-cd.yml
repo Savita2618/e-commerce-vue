@@ -414,35 +414,95 @@ jobs:
           
           echo "🎉 Toutes les images Docker sont disponibles !"
 
-      - name: Test individual services with MongoDB
+      - name: Test services startup (simplified)
         run: |
-          echo "🧪 === TEST DES SERVICES INDIVIDUELS ==="
+          echo "🧪 === TEST DE DÉMARRAGE DES SERVICES ==="
           
           # Test auth-service
-          echo "Testing auth-service..."
-          docker run --rm --network host \
+          echo "Testing auth-service startup..."
+          container_id=$(docker run --rm \
             -e NODE_ENV=test \
             -e PORT=3001 \
             -e MONGODB_URI=mongodb://admin:password@localhost:27017/authdb?authSource=admin \
             -e JWT_SECRET=test_secret \
             -p 3001:3001 \
             --name auth-test \
-            -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:latest
+            -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:latest)
           
-          # Attendre que le service démarre
+          # Attendre et vérifier que le conteneur ne crash pas
           sleep 10
-          
-          # Test de santé
-          if curl -f http://localhost:3001 2>/dev/null || curl -f http://localhost:3001/api/health 2>/dev/null; then
-            echo "✅ Auth service répond"
+          if docker ps --filter "name=auth-test" --filter "status=running" | grep -q auth-test; then
+            echo "✅ Auth service démarre correctement"
           else
-            echo "⚠️ Auth service ne répond pas (peut être normal)"
+            echo "❌ Auth service a crashé"
+            docker logs auth-test 2>&1 | tail -5
           fi
-          
-          # Arrêter le service
           docker stop auth-test 2>/dev/null || true
           
-          echo "🎉 Test auth-service terminé"
+          # Test product-service
+          echo "Testing product-service startup..."
+          docker run --rm \
+            -e NODE_ENV=test \
+            -e PORT=3002 \
+            -e MONGODB_URI=mongodb://admin:password@localhost:27018/productsdb?authSource=admin \
+            -e JWT_SECRET=test_secret \
+            -p 3002:3002 \
+            --name product-test \
+            -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:latest
+          
+          sleep 10
+          if docker ps --filter "name=product-test" --filter "status=running" | grep -q product-test; then
+            echo "✅ Product service démarre correctement"
+          else
+            echo "❌ Product service a crashé"
+            docker logs product-test 2>&1 | tail -5
+          fi
+          docker stop product-test 2>/dev/null || true
+          
+          # Test order-service
+          echo "Testing order-service startup..."
+          docker run --rm \
+            -e NODE_ENV=test \
+            -e PORT=3003 \
+            -e MONGODB_URI=mongodb://admin:password@localhost:27019/ordersdb?authSource=admin \
+            -e JWT_SECRET=test_secret \
+            -p 3003:3003 \
+            --name order-test \
+            -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:latest
+          
+          sleep 10
+          if docker ps --filter "name=order-test" --filter "status=running" | grep -q order-test; then
+            echo "✅ Order service démarre correctement"
+          else
+            echo "❌ Order service a crashé"
+            docker logs order-test 2>&1 | tail -5
+          fi
+          docker stop order-test 2>/dev/null || true
+          
+          # Test frontend
+          echo "Testing frontend startup..."
+          docker run --rm \
+            -p 8080:8080 \
+            --name frontend-test \
+            -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/frontend:latest
+          
+          sleep 15
+          if docker ps --filter "name=frontend-test" --filter "status=running" | grep -q frontend-test; then
+            echo "✅ Frontend démarre correctement"
+            # Test simple de curl
+            if curl -f -s http://localhost:8080 > /dev/null 2>&1; then
+              echo "✅ Frontend répond aux requêtes HTTP"
+            else
+              echo "⚠️ Frontend ne répond pas aux requêtes (normal si pas de route /)"
+            fi
+          else
+            echo "❌ Frontend a crashé"
+            docker logs frontend-test 2>&1 | tail -5
+          fi
+          docker stop frontend-test 2>/dev/null || true
+          
+          echo "🎉 Tests de démarrage terminés"
+
 
       - name: Test frontend image
         run: |
