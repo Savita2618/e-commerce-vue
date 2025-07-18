@@ -16,12 +16,11 @@ export const auth = (req, res, next) => {
 
     //const decoded = jwt.verify(token, process.env.JWT_SECRET || 'test_secret');
 
-
     // TEMPORAIRE - avec debug :
-    console.log('=== DEBUG MIDDLEWARE ===');
-    console.log('JWT_SECRET middleware:', process.env.JWT_SECRET);
-    console.log('Fallback utilisé: efrei_super_pass');
-    console.log('========================');
+    // console.log('=== DEBUG MIDDLEWARE ===');
+    // console.log('JWT_SECRET middleware:', process.env.JWT_SECRET);
+    // console.log('Fallback utilisé: efrei_super_pass');
+    // console.log('========================');
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'efrei_super_pass');
     req.user = decoded;

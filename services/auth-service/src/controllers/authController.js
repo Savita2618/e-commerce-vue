@@ -39,10 +39,10 @@ export const register = async (req, res) => {
   
       await user.save();
   
-      console.log('=== DEBUG JWT ===');
-      console.log('process.env.JWT_SECRET:', process.env.JWT_SECRET);
-      console.log('Clé utilisée:', process.env.JWT_SECRET || 'efrei_super_pass');
-      console.log('================');
+      // console.log('=== DEBUG JWT ===');
+      // console.log('process.env.JWT_SECRET:', process.env.JWT_SECRET);
+      // console.log('Clé utilisée:', process.env.JWT_SECRET || 'efrei_super_pass');
+      // console.log('================');
 
       const token = jwt.sign(
         { userId: user._id, email: user.email },
@@ -90,11 +90,10 @@ export const login = async (req, res) => {
 
     // Génération du token
 
-    console.log('=== DEBUG JWT LOGIN ===');
-    console.log('process.env.JWT_SECRET:', process.env.JWT_SECRET);
-    console.log('Clé utilisée:', process.env.JWT_SECRET || 'efrei_super_pass');
-    console.log('======================');
-
+    // console.log('=== DEBUG JWT LOGIN ===');
+    // console.log('process.env.JWT_SECRET:', process.env.JWT_SECRET);
+    // console.log('Clé utilisée:', process.env.JWT_SECRET || 'efrei_super_pass');
+    // console.log('======================');
 
     const token = jwt.sign(
       { userId: user._id, email: user.email },
