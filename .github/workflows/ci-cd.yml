@@ -150,10 +150,21 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install system dependencies for MongoDB Memory Server
+     # 🔧 FIX PRINCIPAL: Installer libssl1.1 pour MongoDB 4.4.18
+      - name: Install libssl1.1 for MongoDB Memory Server
         run: |
+          echo "🔧 Installation de libssl1.1 pour MongoDB 4.4.18..."
           sudo apt-get update
+          sudo apt-get install -y wget
+          
+          # Télécharger et installer libssl1.1 depuis Ubuntu 20.04
+          wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.22_amd64.deb
+          sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2.22_amd64.deb
+          
+          # Installer les autres dépendances
           sudo apt-get install -y python3 make g++ libc6-dev
+          
+          echo "✅ libssl1.1 installé avec succès"
           
       - name: Set working directory
         id: workdir
