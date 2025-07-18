@@ -150,21 +150,49 @@ jobs:
         with:
           node-version: '18'
 
-     # 🔧 FIX PRINCIPAL: Installer libssl1.1 pour MongoDB 4.4.18
+# 🔧 SOLUTION 1A: libssl1.1 avec URL corrigée
       - name: Install libssl1.1 for MongoDB Memory Server
         run: |
           echo "🔧 Installation de libssl1.1 pour MongoDB 4.4.18..."
           sudo apt-get update
-          sudo apt-get install -y wget
           
-          # Télécharger et installer libssl1.1 depuis Ubuntu 20.04
-          wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.22_amd64.deb
-          sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2.22_amd64.deb
+          # Méthode 1: Essayer d'installer depuis les repos
+          if sudo apt-get install -y libssl1.1; then
+            echo "✅ libssl1.1 installé depuis les repos"
+          else
+            echo "📦 Téléchargement manuel de libssl1.1..."
+            
+            # URLs alternatives pour libssl1.1
+            urls=(
+              "http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.22_amd64.deb"
+              "http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1-1ubuntu2.1~18.04.23_amd64.deb"
+              "https://packages.ubuntu.com/focal/amd64/libssl1.1/download"
+            )
+            
+            for url in "${urls[@]}"; do
+              echo "Essai: $url"
+              if wget -q "$url" -O libssl1.1.deb; then
+                if sudo dpkg -i libssl1.1.deb; then
+                  echo "✅ libssl1.1 installé depuis: $url"
+                  break
+                fi
+              fi
+              rm -f libssl1.1.deb
+            done
+            
+            # Forcer l'installation des dépendances manquantes
+            sudo apt-get install -f -y
+          fi
           
           # Installer les autres dépendances
           sudo apt-get install -y python3 make g++ libc6-dev
           
-          echo "✅ libssl1.1 installé avec succès"
+          # Vérifier l'installation
+          if ldconfig -p | grep -q libssl.so.1.1; then
+            echo "✅ libssl1.1 correctement installé"
+          else
+            echo "⚠️ libssl1.1 peut-être manquant, mais on continue..."
+          fi
           
       - name: Set working directory
         id: workdir
