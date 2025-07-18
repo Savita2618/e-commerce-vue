@@ -7,6 +7,7 @@ stages:
   - validate
   - build
   - test
+  - security
 
 variables:
   REGISTRY: $CI_REGISTRY
@@ -167,3 +168,56 @@ test-frontend:
   rules:
     - if: $CI_COMMIT_BRANCH == "develop"
     - if: $CI_COMMIT_BRANCH == "main"
+
+
+# ===================================
+# 🔒 SECURITY SCAN TRIVY - AJOUT
+# ===================================
+
+.trivy-template: &trivy-template
+  stage: security
+  image: aquasec/trivy:latest
+  before_script:
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+  script:
+    - echo "🔒 Scan de sécurité Trivy pour $SERVICE_NAME..."
+    
+    # Scan format table pour affichage
+    - trivy image --format table --severity CRITICAL,HIGH,MEDIUM $CI_REGISTRY/$PROJECT_NAME_LOWER/$SERVICE_NAME:latest
+    
+    # Scan format JSON pour artefacts (optionnel)
+    - trivy image --format json --output trivy-results-$SERVICE_NAME.json $CI_REGISTRY/$PROJECT_NAME_LOWER/$SERVICE_NAME:latest || true
+    
+    - echo "✅ Scan Trivy terminé pour $SERVICE_NAME"
+  artifacts:
+    when: always
+    paths:
+      - trivy-results-*.json
+    expire_in: 7 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+security-auth-service:
+  <<: *trivy-template
+  variables:
+    SERVICE_NAME: auth-service
+  needs: ["build-auth-service"]
+
+security-product-service:
+  <<: *trivy-template
+  variables:
+    SERVICE_NAME: product-service
+  needs: ["build-product-service"]
+
+security-order-service:
+  <<: *trivy-template
+  variables:
+    SERVICE_NAME: order-service
+  needs: ["build-order-service"]
+
+security-frontend:
+  <<: *trivy-template
+  variables:
+    SERVICE_NAME: frontend
+  needs: ["build-frontend"]
