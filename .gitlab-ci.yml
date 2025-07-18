@@ -171,22 +171,27 @@ test-frontend:
 
 
 # ===================================
-# 🔒 SECURITY SCAN TRIVY - AJOUT
+# 🔒 SECURITY SCAN TRIVY - CORRIGÉ
 # ===================================
 
 .trivy-template: &trivy-template
   stage: security
-  image: aquasec/trivy:latest
+  image: docker:latest
+  services:
+    - docker:dind
   before_script:
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - apk add --no-cache curl
+    - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
     - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
   script:
     - echo "🔒 Scan de sécurité Trivy pour $SERVICE_NAME..."
     
     # Scan format table pour affichage
-    - trivy image --format table --severity CRITICAL,HIGH,MEDIUM $CI_REGISTRY/$PROJECT_NAME_LOWER/$SERVICE_NAME:latest
+    - trivy image --format table --severity CRITICAL,HIGH,MEDIUM --exit-code 0 $CI_REGISTRY/$PROJECT_NAME_LOWER/$SERVICE_NAME:latest
     
-    # Scan format JSON pour artefacts (optionnel)
-    - trivy image --format json --output trivy-results-$SERVICE_NAME.json $CI_REGISTRY/$PROJECT_NAME_LOWER/$SERVICE_NAME:latest || true
+    # Scan format JSON pour artefacts
+    - trivy image --format json --output trivy-results-$SERVICE_NAME.json --exit-code 0 $CI_REGISTRY/$PROJECT_NAME_LOWER/$SERVICE_NAME:latest
     
     - echo "✅ Scan Trivy terminé pour $SERVICE_NAME"
   artifacts:
