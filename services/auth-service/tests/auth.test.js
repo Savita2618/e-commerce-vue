@@ -76,7 +76,7 @@ describe('Auth Endpoints', () => {
       // const decoded = jwt.verify(res.body.token, process.env.JWT_SECRET || 'test_secret');
       // Par (temporaire pour debug) :
       console.log('JWT_SECRET in test:', process.env.JWT_SECRET);
-      const decoded = jwt.verify(res.body.token, 'test_secret');
+      const decoded = jwt.verify(res.body.token, 'efrei_super_pass');
       expect(decoded).toHaveProperty('userId');
       expect(decoded).toHaveProperty('email', testUser.email);
     });
