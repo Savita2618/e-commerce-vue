@@ -73,7 +73,10 @@ describe('Auth Endpoints', () => {
       expect(res.body).toHaveProperty('userId');
 
       // Vérifier que le token est valide
-      const decoded = jwt.verify(res.body.token, process.env.JWT_SECRET || 'test_secret');
+      // const decoded = jwt.verify(res.body.token, process.env.JWT_SECRET || 'test_secret');
+      // Par (temporaire pour debug) :
+      console.log('JWT_SECRET in test:', process.env.JWT_SECRET);
+      const decoded = jwt.verify(res.body.token, 'test_secret');
       expect(decoded).toHaveProperty('userId');
       expect(decoded).toHaveProperty('email', testUser.email);
     });
