@@ -1,20 +1,25 @@
-# services/order-service/build-order.yml
-# Template spécialisé pour order-service avec intégrations
+# ===================================
+# Template Build - Order Service (GitLab)
+# Adapté depuis GitHub Actions matrix strategy
+# ===================================
 
 build-order-service:
   stage: build
   image: docker:24-dind
   services:
     - docker:24-dind
+  variables:
+    SERVICE_NAME: order-service
+    SERVICE_PATH: services/order-service
+    DOCKERFILE_PATH: services/order-service/Dockerfile
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - echo "📦 Build optimisé order-service avec intégrations services..."
     - cd services/order-service
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
     - |
-      PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
-      
-      # Build avec métadonnées de service de commandes
+      # Build avec métadonnées de service de commandes (adapté de GitHub Actions)
       docker build \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
         --cache-from $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:latest \
@@ -24,6 +29,8 @@ build-order-service:
         --label "service.type=order-management" \
         --label "service.integrations=product-service,auth-service" \
         --label "ci.pipeline.id=$CI_PIPELINE_ID" \
+        --label "ci.commit.sha=$CI_COMMIT_SHORT_SHA" \
+        --label "ci.branch=$CI_COMMIT_BRANCH" \
         .
       
       docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:$CI_PIPELINE_ID
@@ -31,56 +38,14 @@ build-order-service:
       
       echo "✅ Image order-service buildée: $(docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' | grep order-service)"
     - echo "✅ Order-service build terminé avec succès"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == "develop"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-
-test-order-service:
-  stage: test
-  image: node:18-bullseye
-  services:
-    - mongo:4.4
-  before_script:
-    - echo "🔧 Installation avec support intégrations..."
-    - apt-get update && apt-get install -y wget curl
-    - |
-      if ! apt-get install -y libssl1.1; then
-        wget -q "http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.22_amd64.deb" -O libssl1.1.deb
-        dpkg -i libssl1.1.deb || apt-get install -f -y
-        rm -f libssl1.1.deb
-      fi
-  variables:
-    NODE_ENV: test
-    MONGODB_URI: mongodb://mongo:27017/ordersdb
-    PRODUCT_SERVICE_URL: http://localhost:3000
-    AUTH_SERVICE_URL: http://localhost:3001
-    MONGOMS_DOWNLOAD_MIRROR: https://fastdl.mongodb.org
-    MONGOMS_VERSION: 4.4.18
-  script:
-    - echo "🧪 Tests spécialisés order-service avec intégrations..."
-    - cd services/order-service
-    - npm ci --prefer-offline --no-audit
-    - |
-      # Tests avec intégrations
-      echo "📦 Tests du service de commandes..."
-      npm test || echo "⚠️ Tests order-service - vérifier intégrations"
-      
-      # Vérifications spécifiques commandes
-      if [ -f "src/models/order.js" ]; then
-        echo "✅ Modèle Order.js détecté"
-      fi
-      
-      if [ -f "src/controllers/orderController.js" ]; then
-        echo "✅ Controller Order.js détecté"
-      fi
-  artifacts:
+  cache:
+    key: $CI_COMMIT_REF_SLUG-order
     paths:
-      - services/order-service/coverage/
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: services/order-service/coverage/cobertura-coverage.xml
+      - .docker/
+  artifacts:
+    when: always
+    paths:
+      - services/order-service/package.json
     expire_in: 1 hour
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
