@@ -12,7 +12,6 @@ variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
   IMAGE_TAG: $CI_PIPELINE_ID
-  PROJECT_NAME_LOWER: $(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
   
   # Variables d'environnement application
   JWT_SECRET: efrei_super_pass_production_secret_12345
