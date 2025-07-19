@@ -199,9 +199,13 @@ test-frontend:
 
 security-scan-auth:
   stage: security
-  image: aquasec/trivy:latest
+  image: docker:24-dind
+  services:
+    - docker:24-dind
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - apk add --no-cache curl
+    - wget -qO - https://github.com/aquasecurity/trivy/releases/latest/download/trivy_Linux-64bit.tar.gz | tar -xzf - -C /usr/local/bin/
   script:
     - echo "Security scan auth-service"
     - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
@@ -220,9 +224,13 @@ security-scan-auth:
 
 security-scan-product:
   stage: security
-  image: aquasec/trivy:latest
+  image: docker:24-dind
+  services:
+    - docker:24-dind
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - apk add --no-cache curl
+    - wget -qO - https://github.com/aquasecurity/trivy/releases/latest/download/trivy_Linux-64bit.tar.gz | tar -xzf - -C /usr/local/bin/
   script:
     - echo "Security scan product-service"
     - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
@@ -241,9 +249,13 @@ security-scan-product:
 
 security-scan-order:
   stage: security
-  image: aquasec/trivy:latest
+  image: docker:24-dind
+  services:
+    - docker:24-dind
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - apk add --no-cache curl
+    - wget -qO - https://github.com/aquasecurity/trivy/releases/latest/download/trivy_Linux-64bit.tar.gz | tar -xzf - -C /usr/local/bin/
   script:
     - echo "Security scan order-service"
     - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
@@ -262,9 +274,13 @@ security-scan-order:
 
 security-scan-frontend:
   stage: security
-  image: aquasec/trivy:latest
+  image: docker:24-dind
+  services:
+    - docker:24-dind
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - apk add --no-cache curl
+    - wget -qO - https://github.com/aquasecurity/trivy/releases/latest/download/trivy_Linux-64bit.tar.gz | tar -xzf - -C /usr/local/bin/
   script:
     - echo "Security scan frontend"
     - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
@@ -280,6 +296,7 @@ security-scan-frontend:
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
+
 
 integration-tests:
   stage: integration
