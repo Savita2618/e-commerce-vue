@@ -1,8 +1,3 @@
-# ===================================
-# GitLab CI/CD Pipeline SÉCURISÉ
-# E-commerce Microservices - Syntaxe simple garantie
-# ===================================
-
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
@@ -15,10 +10,6 @@ stages:
   - security
   - integration
   - summary
-
-# ===================================
-# VALIDATE
-# ===================================
 
 validate:
   stage: validate
@@ -34,10 +25,6 @@ validate:
     - echo "Structure validee avec succes"
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
-
-# ===================================
-# BUILD
-# ===================================
 
 build-auth:
   stage: build
@@ -110,10 +97,6 @@ build-frontend:
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
-
-# ===================================
-# TEST
-# ===================================
 
 test-auth:
   stage: test
@@ -210,10 +193,6 @@ test-frontend:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
-# ===================================
-# SECURITY
-# ===================================
-
 security-scan-auth:
   stage: security
   image: aquasecurity/trivy:latest
@@ -290,10 +269,6 @@ security-scan-frontend:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
-# ===================================
-# INTEGRATION
-# ===================================
-
 integration-tests:
   stage: integration
   image: docker:24-dind
@@ -326,33 +301,25 @@ integration-tests:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
-# ===================================
-# SUMMARY
-# ===================================
-
 summary:
   stage: summary
   image: alpine:latest
   script:
-    - echo "PIPELINE GITLAB TERMINE AVEC SUCCES"
-    - echo ""
-    - echo "VALIDATION: Structure validee"
-    - echo "BUILD: 4 services construits"
-    - echo "TESTS: Tests unitaires executes"
-    - echo "SECURITY: Scans Trivy effectues"
-    - echo "INTEGRATION: Tests integration executes"
-    - echo ""
-    - echo "IMAGES CONSTRUITES:"
-    - echo "auth-service:$IMAGE_TAG"
-    - echo "product-service:$IMAGE_TAG"
-    - echo "order-service:$IMAGE_TAG"
-    - echo "frontend:$IMAGE_TAG"
-    - echo ""
-    - echo "BRANCHE: $CI_COMMIT_BRANCH"
-    - echo "COMMIT: $CI_COMMIT_SHORT_SHA"
-    - echo "PIPELINE ID: $CI_PIPELINE_ID"
-    - echo ""
-    - echo "PIPELINE SOPHISTIQUE TERMINE"
+    - echo "PIPELINE GITLAB TERMINE"
+    - echo "VALIDATION Structure validee"
+    - echo "BUILD 4 services construits"
+    - echo "TESTS Tests unitaires executes"
+    - echo "SECURITY Scans Trivy effectues"
+    - echo "INTEGRATION Tests integration executes"
+    - echo "IMAGES CONSTRUITES"
+    - echo "auth-service $IMAGE_TAG"
+    - echo "product-service $IMAGE_TAG"
+    - echo "order-service $IMAGE_TAG"
+    - echo "frontend $IMAGE_TAG"
+    - echo "BRANCHE $CI_COMMIT_BRANCH"
+    - echo "COMMIT $CI_COMMIT_SHORT_SHA"
+    - echo "PIPELINE ID $CI_PIPELINE_ID"
+    - echo "PIPELINE SOPHISTIQUE TERMINE AVEC SUCCES"
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   when: always
