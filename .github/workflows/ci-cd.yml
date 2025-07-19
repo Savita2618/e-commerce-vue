@@ -824,16 +824,3 @@ jobs:
         if: failure() && github.ref == 'refs/heads/main'
         run: |
           echo "🚨 Pipeline failed on main branch!"
- 
-cleanup:
-  name: 🧹 Cleanup
-  runs-on: ubuntu-latest
-  needs: summary
-  if: always()
-  steps:
-    - name: Clean old images
-      run: |
-        echo "🧹 Nettoyage des images anciennes..."
-        # Note: GitHub Actions nettoie automatiquement
-        echo "✅ Auto-cleanup activé"
-
