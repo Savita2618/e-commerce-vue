@@ -2,7 +2,7 @@
 # Template Build - Auth Service (CORRIGÉ YAML)
 # ===================================
 
-.build-auth-service:
+build-auth-service:
   stage: build
   image: docker:24-dind
   services:
