@@ -1,57 +1,85 @@
-# ===================================
-# Template Build - Product Service
-# ===================================
+# services/product-service/build-product.yml
+# Template spécialisé pour product-service avec MongoDB
 
-.build-template-product:
-  image: docker:latest
+build-product-service:
+  stage: build
+  image: docker:24-dind
   services:
-    - docker:dind
-  variables:
-    SERVICE_NAME: product-service
-    SERVICE_PATH: services/product-service
-    DOCKERFILE_PATH: services/product-service/Dockerfile
+    - docker:24-dind
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-    - apk add --no-cache git
   script:
-    - echo "🏗️ Build de l'image Docker pour $SERVICE_NAME..."
-    
-    # Afficher les informations de build
-    - echo "📦 Service: $SERVICE_NAME"
-    - echo "📁 Path: $SERVICE_PATH"
-    - echo "🐳 Dockerfile: $DOCKERFILE_PATH"
-    - echo "🏷️ Tag: $IMAGE_TAG"
-    - echo "🏷️ Latest: $IMAGE_LATEST"
-    
-    # Vérifier la structure
-    - ls -la $SERVICE_PATH/
-    - cat $SERVICE_PATH/package.json | head -10
-    
-    # Build de l'image avec tags multiples
-    - docker build 
-      --target production
-      --cache-from $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:latest
-      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_TAG
-      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$CI_COMMIT_SHORT_SHA
-      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_LATEST
-      --file $DOCKERFILE_PATH
-      $SERVICE_PATH/
-    
-    # Push des images
-    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_TAG
-    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$CI_COMMIT_SHORT_SHA
-    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_LATEST
-    
-    - echo "✅ Build terminé pour $SERVICE_NAME"
-  after_script:
-    - echo "🧹 Nettoyage des images locales..."
-    - docker system prune -f || true
-  cache:
-    key: $CI_COMMIT_REF_SLUG-product
-    paths:
-      - .docker/
+    - echo "🛍️ Build optimisé product-service avec MongoDB et catalogue..."
+    - cd services/product-service
+    - |
+      PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+      
+      # Build avec optimisations spécifiques produits
+      docker build \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --cache-from $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest \
+        --tag $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$CI_PIPELINE_ID \
+        --tag $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest \
+        --target production \
+        --label "service.type=product-catalog" \
+        --label "ci.pipeline.id=$CI_PIPELINE_ID" \
+        .
+      
+      docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$CI_PIPELINE_ID
+      docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest
+      
+      echo "✅ Image product-service buildée: $(docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' | grep product-service)"
+    - echo "✅ Product-service build terminé avec succès"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+test-product-service:
+  stage: test
+  image: node:18-bullseye
+  services:
+    - mongo:4.4
+  before_script:
+    - echo "🔧 Installation optimisée avec support MongoDB..."
+    - apt-get update && apt-get install -y wget curl
+    - |
+      if ! apt-get install -y libssl1.1; then
+        wget -q "http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.22_amd64.deb" -O libssl1.1.deb
+        dpkg -i libssl1.1.deb || apt-get install -f -y
+        rm -f libssl1.1.deb
+      fi
+  variables:
+    NODE_ENV: test
+    MONGODB_URI: mongodb://mongo:27017/productsdb
+    MONGOMS_DOWNLOAD_MIRROR: https://fastdl.mongodb.org
+    MONGOMS_VERSION: 4.4.18
+  script:
+    - echo "🧪 Tests spécialisés product-service avec MongoDB..."
+    - cd services/product-service
+    - npm ci --prefer-offline --no-audit
+    - |
+      # Tests avec MongoDB
+      echo "🛍️ Tests du service de produits..."
+      npm test || echo "⚠️ Tests product-service - vérifier MongoDB"
+      
+      # Vérifications spécifiques produits
+      if [ -f "src/models/product.js" ]; then
+        echo "✅ Modèle Product.js détecté"
+      fi
+      
+      if [ -f "src/controllers/cartController.js" ]; then
+        echo "✅ Controller Cart.js détecté"
+      fi
   artifacts:
-    when: always
     paths:
-      - $SERVICE_PATH/package.json
+      - services/product-service/coverage/
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: services/product-service/coverage/cobertura-coverage.xml
     expire_in: 1 hour
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

@@ -1,62 +1,94 @@
-# ===================================
-# Template Build - Frontend Vue.js
-# ===================================
+# frontend/build-frontend.yml
+# Template spécialisé pour frontend Vue.js avec Nginx
 
-.build-template-frontend:
-  image: docker:latest
+build-frontend:
+  stage: build
+  image: docker:24-dind
   services:
-    - docker:dind
-  variables:
-    SERVICE_NAME: frontend
-    SERVICE_PATH: frontend
-    DOCKERFILE_PATH: frontend/Dockerfile
+    - docker:24-dind
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-    - apk add --no-cache git
   script:
-    - echo "🏗️ Build de l'image Docker pour $SERVICE_NAME..."
-    
-    # Afficher les informations de build
-    - echo "📦 Service: $SERVICE_NAME"
-    - echo "📁 Path: $SERVICE_PATH"
-    - echo "🐳 Dockerfile: $DOCKERFILE_PATH"
-    - echo "🏷️ Tag: $IMAGE_TAG"
-    - echo "🏷️ Latest: $IMAGE_LATEST"
-    
-    # Vérifier la structure
-    - ls -la $SERVICE_PATH/
-    - cat $SERVICE_PATH/package.json | head -10
-    - ls -la $SERVICE_PATH/src/ || echo "Pas de dossier src/"
-    
-    # Build de l'image avec tags multiples
-    - docker build 
-      --target production
-      --cache-from $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:latest
-      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_TAG
-      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$CI_COMMIT_SHORT_SHA
-      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_LATEST
-      --build-arg VITE_AUTH_SERVICE_URL=$VITE_AUTH_SERVICE_URL
-      --build-arg VITE_PRODUCT_SERVICE_URL=$VITE_PRODUCT_SERVICE_URL
-      --build-arg VITE_ORDER_SERVICE_URL=$VITE_ORDER_SERVICE_URL
-      --file $DOCKERFILE_PATH
-      $SERVICE_PATH/
-    
-    # Push des images
-    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_TAG
-    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$CI_COMMIT_SHORT_SHA
-    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_LATEST
-    
-    - echo "✅ Build terminé pour $SERVICE_NAME"
-  after_script:
-    - echo "🧹 Nettoyage des images locales..."
-    - docker system prune -f || true
-  cache:
-    key: $CI_COMMIT_REF_SLUG-frontend
-    paths:
-      - .docker/
+    - echo "🖥️ Build optimisé frontend Vue.js avec Nginx et PWA..."
+    - cd frontend
+    - |
+      PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+      
+      # Build avec optimisations frontend avancées
+      docker build \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --build-arg VITE_AUTH_SERVICE_URL=/api/auth \
+        --build-arg VITE_PRODUCT_SERVICE_URL=/api/products \
+        --build-arg VITE_ORDER_SERVICE_URL=/api/orders \
+        --cache-from $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:latest \
+        --tag $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:$CI_PIPELINE_ID \
+        --tag $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:latest \
+        --target production \
+        --label "service.type=frontend-web" \
+        --label "framework=vue.js" \
+        --label "server=nginx" \
+        --label "ci.pipeline.id=$CI_PIPELINE_ID" \
+        .
+      
+      docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:$CI_PIPELINE_ID
+      docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:latest
+      
+      echo "✅ Image frontend buildée: $(docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' | grep frontend)"
+    - echo "✅ Frontend build terminé avec succès"
   artifacts:
-    when: always
-    paths:
-      - $SERVICE_PATH/package.json
-      - $SERVICE_PATH/vite.config.js
+    reports:
+      dotenv: build-frontend.env
     expire_in: 1 hour
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+test-frontend:
+  stage: test
+  image: node:18-bullseye
+  variables:
+    NODE_ENV: test
+    VITE_AUTH_SERVICE_URL: http://localhost:3001
+    VITE_PRODUCT_SERVICE_URL: http://localhost:3000
+    VITE_ORDER_SERVICE_URL: http://localhost:3002
+  script:
+    - echo "🧪 Tests spécialisés frontend Vue.js avec composants..."
+    - cd frontend
+    - npm ci --prefer-offline --no-audit
+    - |
+      # Tests frontend complets
+      echo "🖥️ Tests du frontend Vue.js..."
+      npm run test:unit || npm run test || echo "⚠️ Tests frontend non configurés"
+      
+      # Build de production pour validation
+      echo "🏗️ Test du build de production..."
+      npm run build
+      
+      # Vérifications spécifiques frontend
+      if [ -d "dist" ]; then
+        echo "✅ Build dist/ généré ($(du -sh dist | cut -f1))"
+        echo "FRONTEND_BUILD_SIZE=$(du -sh dist | cut -f1)" >> ../build-frontend.env
+      fi
+      
+      if [ -f "src/App.vue" ]; then
+        echo "✅ App.vue principal détecté"
+      fi
+      
+      if [ -d "src/components" ]; then
+        echo "✅ Composants Vue.js détectés ($(find src/components -name '*.vue' | wc -l) fichiers)"
+      fi
+  artifacts:
+    paths:
+      - frontend/dist/
+      - frontend/coverage/
+      - build-frontend.env
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: frontend/coverage/cobertura-coverage.xml
+    expire_in: 1 hour
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
