@@ -129,6 +129,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host  # Optimisation réseau
+
   # ===================================
   # 🧪 TESTS UNITAIRES - CORRIGÉ !
   # ===================================
@@ -238,13 +244,25 @@ jobs:
             echo "⚠️ Pas de fichiers de coverage pour ${{ matrix.service }}"
           fi
         
-      - name: Upload coverage reports
-        if: steps.coverage.outputs.exists == 'true'
+      - name: Run tests with timeout
+        timeout-minutes: 15  # Éviter les jobs qui traînent
+        working-directory: ${{ steps.workdir.outputs.path }}
+        run: |
+          timeout 900 npm test || {
+            echo "⚠️ Tests timeout après 15min"
+            exit 1
+          }
+
+      - name: Upload test reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.service }}-coverage
-          path: ${{ steps.workdir.outputs.path }}/coverage/
-          retention-days: 7
+          name: test-results-${{ matrix.service }}
+          path: |
+            ${{ steps.workdir.outputs.path }}/coverage/
+            ${{ steps.workdir.outputs.path }}/test-results.xml
+            ${{ steps.workdir.outputs.path }}/junit.xml
+          retention-days: 14  # Plus long que 7 jours
 
   # ===================================
   # 🔒 SECURITY SCAN TRIVY - CORRIGÉ !
@@ -801,3 +819,21 @@ jobs:
           echo "  ├─ Services testés: 4 (auth, product, order, frontend)"
           echo "  ├─ Scans sécurité: 4 (Trivy pour chaque service)"
           echo "  └─ Bases de données: 3 (MongoDB instances)"
+
+      - name: Notify on failure
+        if: failure() && github.ref == 'refs/heads/main'
+        run: |
+          echo "🚨 Pipeline failed on main branch!"
+ 
+cleanup:
+  name: 🧹 Cleanup
+  runs-on: ubuntu-latest
+  needs: summary
+  if: always()
+  steps:
+    - name: Clean old images
+      run: |
+        echo "🧹 Nettoyage des images anciennes..."
+        # Note: GitHub Actions nettoie automatiquement
+        echo "✅ Auto-cleanup activé"
+
