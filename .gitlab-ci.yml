@@ -353,25 +353,25 @@ summary:
   stage: summary
   image: alpine:latest
   script:
-    - echo "🎉 PIPELINE GITLAB TERMINE"
-    - echo "✅ VALIDATION Structure validee"
-    - echo "🏗️ BUILD 4 services construits"
-    - echo "🧪 TESTS Tests unitaires executes"
-    - echo "🔒 SECURITY Scans Trivy effectues (CORRIGÉ)"
-    - echo "🔗 INTEGRATION Tests integration executes"
+    - echo "PIPELINE GITLAB TERMINE"
+    - echo "VALIDATION Structure validee"
+    - echo "BUILD 4 services construits"
+    - echo "TESTS Tests unitaires executes"
+    - echo "SECURITY Scans Trivy effectues (CORRIGÉ)"
+    - echo "INTEGRATION Tests integration executes"
     - echo ""
-    - echo "📦 IMAGES CONSTRUITES:"
+    - echo "IMAGES CONSTRUITES:"
     - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
     - echo "  ├─ $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:$IMAGE_TAG"
     - echo "  ├─ $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$IMAGE_TAG"
     - echo "  ├─ $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:$IMAGE_TAG"
     - echo "  └─ $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:$IMAGE_TAG"
     - echo ""
-    - echo "🎯 BRANCHE: $CI_COMMIT_BRANCH"
-    - echo "📝 COMMIT: $CI_COMMIT_SHORT_SHA"
-    - echo "🔢 PIPELINE ID: $CI_PIPELINE_ID"
+    - echo "BRANCHE: $CI_COMMIT_BRANCH"
+    - echo "COMMIT: $CI_COMMIT_SHORT_SHA"
+    - echo "PIPELINE ID: $CI_PIPELINE_ID"
     - echo ""
-    - echo "🎓 PROJET ESGI M1 - Pipeline sophistiqué terminé avec succès !"
+    - echo "PROJET ESGI M1 - Pipeline sophistiqué terminé avec succès !"
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   when: always
