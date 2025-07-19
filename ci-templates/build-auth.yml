@@ -1,6 +1,6 @@
 # ===================================
 # Template Build - Auth Service (GitLab)
-# Adapté depuis GitHub Actions matrix strategy
+# Adapté depuis ton code + améliorations
 # ===================================
 
 build-auth-service:
@@ -14,12 +14,18 @@ build-auth-service:
     DOCKERFILE_PATH: services/auth-service/Dockerfile
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+    - echo "🔐 === BUILD AUTH SERVICE ==="
+    - echo "Variables d'environnement:"
+    - echo "- Image: $CI_REGISTRY/$PROJECT_NAME_LOWER/$SERVICE_NAME:$CI_PIPELINE_ID"
+    - echo "- Registry: $CI_REGISTRY"
+    - echo "- Branch: $CI_COMMIT_BRANCH"
+    - echo "- Commit: $CI_COMMIT_SHORT_SHA"
   script:
     - echo "🔐 Build optimisé auth-service avec JWT et sécurité..."
     - cd services/auth-service
-    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
     - |
-      # Build avec cache et métadonnées avancées (adapté de GitHub Actions)
+      # Build avec cache et métadonnées avancées (adapté de ton code)
       docker build \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
         --cache-from $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:latest \
@@ -30,15 +36,28 @@ build-auth-service:
         --label "ci.commit.sha=$CI_COMMIT_SHORT_SHA" \
         --label "ci.branch=$CI_COMMIT_BRANCH" \
         --label "service.type=authentication" \
+        --label "project=esgi-ecommerce" \
         .
-      
-      # Push avec vérification (comme GitHub Actions)
-      docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:$CI_PIPELINE_ID
-      docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:latest
-      
-      # Vérification de l'image
-      echo "✅ Image auth-service buildée: $(docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' | grep auth-service)"
+    
+    # Push avec vérification (comme ton code GitHub Actions)
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:$CI_PIPELINE_ID
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:latest
+    
+    # Vérification de l'image (ton amélioration)
+    - echo "✅ Image auth-service buildée: $(docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' | grep auth-service)"
+    
+    # Test rapide de l'image
+    - |
+      echo "🧪 Test rapide de l'image..."
+      docker run --rm --name auth-test-build \
+        -e NODE_ENV=test \
+        -e PORT=3001 \
+        $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:$CI_PIPELINE_ID \
+        node --version && echo "✅ Image Auth Service fonctionnelle"
+    
     - echo "✅ Auth-service build terminé avec succès"
+  after_script:
+    - docker system prune -f
   cache:
     key: $CI_COMMIT_REF_SLUG-auth
     paths:

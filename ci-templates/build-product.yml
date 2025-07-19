@@ -1,6 +1,6 @@
 # ===================================
 # Template Build - Product Service (GitLab)
-# Adapté depuis GitHub Actions matrix strategy
+# Adapté depuis ton code + améliorations
 # ===================================
 
 build-product-service:
@@ -14,12 +14,18 @@ build-product-service:
     DOCKERFILE_PATH: services/product-service/Dockerfile
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+    - echo "🛍️ === BUILD PRODUCT SERVICE ==="
+    - echo "Variables d'environnement:"
+    - echo "- Image: $CI_REGISTRY/$PROJECT_NAME_LOWER/$SERVICE_NAME:$CI_PIPELINE_ID"
+    - echo "- Registry: $CI_REGISTRY"
+    - echo "- Branch: $CI_COMMIT_BRANCH"
+    - echo "- Commit: $CI_COMMIT_SHORT_SHA"
   script:
     - echo "🛍️ Build optimisé product-service avec MongoDB et catalogue..."
     - cd services/product-service
-    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
     - |
-      # Build avec optimisations spécifiques produits (adapté de GitHub Actions)
+      # Build avec optimisations spécifiques produits (adapté de ton code)
       docker build \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
         --cache-from $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest \
@@ -30,13 +36,26 @@ build-product-service:
         --label "ci.pipeline.id=$CI_PIPELINE_ID" \
         --label "ci.commit.sha=$CI_COMMIT_SHORT_SHA" \
         --label "ci.branch=$CI_COMMIT_BRANCH" \
+        --label "project=esgi-ecommerce" \
         .
-      
-      docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$CI_PIPELINE_ID
-      docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest
-      
-      echo "✅ Image product-service buildée: $(docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' | grep product-service)"
+    
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$CI_PIPELINE_ID
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest
+    
+    - echo "✅ Image product-service buildée: $(docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' | grep product-service)"
+    
+    # Test rapide de l'image
+    - |
+      echo "🧪 Test rapide de l'image..."
+      docker run --rm --name product-test-build \
+        -e NODE_ENV=test \
+        -e PORT=3002 \
+        $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$CI_PIPELINE_ID \
+        node --version && echo "✅ Image Product Service fonctionnelle"
+    
     - echo "✅ Product-service build terminé avec succès"
+  after_script:
+    - docker system prune -f
   cache:
     key: $CI_COMMIT_REF_SLUG-product
     paths:

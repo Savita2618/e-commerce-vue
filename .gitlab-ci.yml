@@ -1,7 +1,28 @@
+# ===================================
+# GitLab CI/CD Principal - Projet ESGI
+# Version corrigée avec templates séparés
+# ===================================
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
   IMAGE_TAG: $CI_PIPELINE_ID
+  PROJECT_NAME_LOWER: $(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+  
+  # Variables d'environnement application
+  JWT_SECRET: efrei_super_pass_production_secret_12345
+  MONGODB_URI: mongodb://user:pass@host/db
+  MONGO_ROOT_PASSWORD: production_password_12345
+  
+  # Variables frontend
+  VITE_AUTH_SERVICE_URL: /api/auth
+  VITE_PRODUCT_SERVICE_URL: /api/products
+  VITE_ORDER_SERVICE_URL: /api/orders
 
 stages:
   - validate
@@ -9,8 +30,23 @@ stages:
   - test
   - security
   - integration
+  - deploy-dev
+  - deploy-staging
+  - deploy-prod
   - summary
 
+# ===================================
+# INCLUSION DES TEMPLATES (requis ESGI)
+# ===================================
+include:
+  - local: 'ci/build-auth.yml'
+  - local: 'ci/build-product.yml'
+  - local: 'ci/build-order.yml'
+  - local: 'ci/build-frontend.yml'
+
+# ===================================
+# 🔍 VALIDATE STAGE
+# ===================================
 validate:
   stage: validate
   image: alpine:latest
@@ -26,78 +62,13 @@ validate:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
 
-build-auth:
-  stage: build
-  image: docker:24-dind
-  services:
-    - docker:24-dind
-  before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-  script:
-    - echo "Build auth-service"
-    - cd services/auth-service
-    - docker build -t $CI_REGISTRY_IMAGE/auth-service:$IMAGE_TAG -t $CI_REGISTRY_IMAGE/auth-service:latest .
-    - docker push $CI_REGISTRY_IMAGE/auth-service:$IMAGE_TAG
-    - docker push $CI_REGISTRY_IMAGE/auth-service:latest
-    - echo "Auth-service build termine"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == "develop"
+# ===================================
+# Les jobs BUILD sont dans les templates ci/build-*.yml
+# ===================================
 
-build-product:
-  stage: build
-  image: docker:24-dind
-  services:
-    - docker:24-dind
-  before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-  script:
-    - echo "Build product-service"
-    - cd services/product-service
-    - docker build -t $CI_REGISTRY_IMAGE/product-service:$IMAGE_TAG -t $CI_REGISTRY_IMAGE/product-service:latest .
-    - docker push $CI_REGISTRY_IMAGE/product-service:$IMAGE_TAG
-    - docker push $CI_REGISTRY_IMAGE/product-service:latest
-    - echo "Product-service build termine"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == "develop"
-
-build-order:
-  stage: build
-  image: docker:24-dind
-  services:
-    - docker:24-dind
-  before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-  script:
-    - echo "Build order-service"
-    - cd services/order-service
-    - docker build -t $CI_REGISTRY_IMAGE/order-service:$IMAGE_TAG -t $CI_REGISTRY_IMAGE/order-service:latest .
-    - docker push $CI_REGISTRY_IMAGE/order-service:$IMAGE_TAG
-    - docker push $CI_REGISTRY_IMAGE/order-service:latest
-    - echo "Order-service build termine"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == "develop"
-
-build-frontend:
-  stage: build
-  image: docker:24-dind
-  services:
-    - docker:24-dind
-  before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-  script:
-    - echo "Build frontend"
-    - cd frontend
-    - docker build -t $CI_REGISTRY_IMAGE/frontend:$IMAGE_TAG -t $CI_REGISTRY_IMAGE/frontend:latest .
-    - docker push $CI_REGISTRY_IMAGE/frontend:$IMAGE_TAG
-    - docker push $CI_REGISTRY_IMAGE/frontend:latest
-    - echo "Frontend build termine"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == "develop"
-
+# ===================================
+# 🧪 TEST STAGE
+# ===================================
 test-auth:
   stage: test
   image: node:18-bullseye
@@ -193,82 +164,96 @@ test-frontend:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
+# ===================================
+# 🔒 SECURITY STAGE - CORRIGÉ!
+# ===================================
 security-scan-auth:
   stage: security
-  image: aquasecurity/trivy:latest
+  image: aquasec/trivy:latest  # CORRIGÉ: sans le 's'
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - echo "Security scan auth-service"
-    - trivy image --format table $CI_REGISTRY_IMAGE/auth-service:latest || echo "Scan completed"
-    - trivy image --format json --output trivy-auth.json $CI_REGISTRY_IMAGE/auth-service:latest || echo "JSON report completed"
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+    - trivy image --format table $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:latest || echo "Scan completed"
+    - trivy image --format json --output trivy-auth.json $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:latest || echo "JSON report completed"
   artifacts:
     when: always
     expire_in: 1 day
     paths:
       - trivy-auth.json
   allow_failure: true
+  needs: ["build-auth-service"]  # AJOUTÉ: dépendance explicite
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 security-scan-product:
   stage: security
-  image: aquasecurity/trivy:latest
+  image: aquasec/trivy:latest  # CORRIGÉ
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - echo "Security scan product-service"
-    - trivy image --format table $CI_REGISTRY_IMAGE/product-service:latest || echo "Scan completed"
-    - trivy image --format json --output trivy-product.json $CI_REGISTRY_IMAGE/product-service:latest || echo "JSON report completed"
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+    - trivy image --format table $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest || echo "Scan completed"
+    - trivy image --format json --output trivy-product.json $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest || echo "JSON report completed"
   artifacts:
     when: always
     expire_in: 1 day
     paths:
       - trivy-product.json
   allow_failure: true
+  needs: ["build-product-service"]  # AJOUTÉ
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 security-scan-order:
   stage: security
-  image: aquasecurity/trivy:latest
+  image: aquasec/trivy:latest  # CORRIGÉ
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - echo "Security scan order-service"
-    - trivy image --format table $CI_REGISTRY_IMAGE/order-service:latest || echo "Scan completed"
-    - trivy image --format json --output trivy-order.json $CI_REGISTRY_IMAGE/order-service:latest || echo "JSON report completed"
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+    - trivy image --format table $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:latest || echo "Scan completed"
+    - trivy image --format json --output trivy-order.json $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:latest || echo "JSON report completed"
   artifacts:
     when: always
     expire_in: 1 day
     paths:
       - trivy-order.json
   allow_failure: true
+  needs: ["build-order-service"]  # AJOUTÉ
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 security-scan-frontend:
   stage: security
-  image: aquasecurity/trivy:latest
+  image: aquasec/trivy:latest  # CORRIGÉ
   before_script:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - echo "Security scan frontend"
-    - trivy image --format table $CI_REGISTRY_IMAGE/frontend:latest || echo "Scan completed"
-    - trivy image --format json --output trivy-frontend.json $CI_REGISTRY_IMAGE/frontend:latest || echo "JSON report completed"
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+    - trivy image --format table $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:latest || echo "Scan completed"
+    - trivy image --format json --output trivy-frontend.json $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:latest || echo "JSON report completed"
   artifacts:
     when: always
     expire_in: 1 day
     paths:
       - trivy-frontend.json
   allow_failure: true
+  needs: ["build-frontend"]  # AJOUTÉ
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
+# ===================================
+# 🔗 INTEGRATION TESTS
+# ===================================
 integration-tests:
   stage: integration
   image: docker:24-dind
@@ -280,46 +265,67 @@ integration-tests:
     - apk add --no-cache curl
   script:
     - echo "Tests integration complets"
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
     - sleep 10
-    - docker pull $CI_REGISTRY_IMAGE/auth-service:latest || echo "Pull auth completed"
-    - docker pull $CI_REGISTRY_IMAGE/product-service:latest || echo "Pull product completed"
-    - docker pull $CI_REGISTRY_IMAGE/order-service:latest || echo "Pull order completed"
-    - docker pull $CI_REGISTRY_IMAGE/frontend:latest || echo "Pull frontend completed"
+    
+    # Pull des images avec le bon nom de projet
+    - docker pull $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:latest || echo "Pull auth completed"
+    - docker pull $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest || echo "Pull product completed"
+    - docker pull $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:latest || echo "Pull order completed"
+    - docker pull $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:latest || echo "Pull frontend completed"
+    
+    # Test auth service
     - echo "Test auth service"
-    - docker run --rm -d --name auth-test -e NODE_ENV=production $CI_REGISTRY_IMAGE/auth-service:latest || echo "Auth test started"
+    - docker run --rm -d --name auth-test -e NODE_ENV=production $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:latest || echo "Auth test started"
     - sleep 5
     - docker logs auth-test || echo "Auth logs checked"
     - docker stop auth-test || echo "Auth test stopped"
+    
+    # Test frontend
     - echo "Test frontend"
-    - docker run --rm -d --name frontend-test -p 8080:8080 $CI_REGISTRY_IMAGE/frontend:latest || echo "Frontend test started"
+    - docker run --rm -d --name frontend-test -p 8080:8080 $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:latest || echo "Frontend test started"
     - sleep 10
     - curl -f http://localhost:8080/ || echo "Frontend test completed"
     - docker stop frontend-test || echo "Frontend test stopped"
     - echo "Integration tests completed"
   allow_failure: true
+  needs: ["build-auth-service", "build-product-service", "build-order-service", "build-frontend"]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
+# ===================================
+# 🚀 DEPLOY STAGES (à ajouter plus tard)
+# ===================================
+
+# TODO: Ajouter deploy-dev, deploy-staging, deploy-prod
+
+# ===================================
+# 📊 SUMMARY
+# ===================================
 summary:
   stage: summary
   image: alpine:latest
   script:
-    - echo "PIPELINE GITLAB TERMINE"
-    - echo "VALIDATION Structure validee"
-    - echo "BUILD 4 services construits"
-    - echo "TESTS Tests unitaires executes"
-    - echo "SECURITY Scans Trivy effectues"
-    - echo "INTEGRATION Tests integration executes"
-    - echo "IMAGES CONSTRUITES"
-    - echo "auth-service $IMAGE_TAG"
-    - echo "product-service $IMAGE_TAG"
-    - echo "order-service $IMAGE_TAG"
-    - echo "frontend $IMAGE_TAG"
-    - echo "BRANCHE $CI_COMMIT_BRANCH"
-    - echo "COMMIT $CI_COMMIT_SHORT_SHA"
-    - echo "PIPELINE ID $CI_PIPELINE_ID"
-    - echo "PIPELINE SOPHISTIQUE TERMINE AVEC SUCCES"
+    - echo "🎉 PIPELINE GITLAB ESGI TERMINE"
+    - echo "✅ VALIDATION Structure validee"
+    - echo "🏗️ BUILD 4 services construits avec templates"
+    - echo "🧪 TESTS Tests unitaires executes"
+    - echo "🔒 SECURITY Scans Trivy effectues (CORRIGÉ)"
+    - echo "🔗 INTEGRATION Tests integration executes"
+    - echo ""
+    - echo "📦 IMAGES CONSTRUITES:"
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+    - echo "  ├─ $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:$IMAGE_TAG"
+    - echo "  ├─ $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$IMAGE_TAG"
+    - echo "  ├─ $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:$IMAGE_TAG"
+    - echo "  └─ $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:$IMAGE_TAG"
+    - echo ""
+    - echo "🎯 BRANCHE: $CI_COMMIT_BRANCH"
+    - echo "📝 COMMIT: $CI_COMMIT_SHORT_SHA"
+    - echo "🔢 PIPELINE ID: $CI_PIPELINE_ID"
+    - echo ""
+    - echo "🎓 PROJET ESGI M1 - Pipeline sophistiqué terminé avec succès !"
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   when: always
