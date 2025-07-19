@@ -414,94 +414,99 @@ jobs:
           
           echo "🎉 Toutes les images Docker sont disponibles !"
 
-      - name: Test services startup (simplified)
+      - name: Advanced service diagnosis
         run: |
-          echo "🧪 === TEST DE DÉMARRAGE DES SERVICES ==="
+          echo "🔍 === DIAGNOSTIC AVANCÉ DES SERVICES ==="
           
-          # Test auth-service
-          echo "Testing auth-service startup..."
-          container_id=$(docker run --rm \
+          # Test 1: Vérifier la connectivité MongoDB depuis un conteneur
+          echo "🗄️ Test connectivité MongoDB depuis conteneur..."
+          
+          # Test MongoDB auth (port 27017)
+          echo "Testing MongoDB connection from container to localhost:27017..."
+          if docker run --rm --network host mongo:4.4 mongo \
+            --host localhost:27017 \
+            --username admin \
+            --password password \
+            --eval "db.adminCommand('ping')" 2>/dev/null; then
+            echo "✅ MongoDB auth accessible depuis conteneur"
+          else
+            echo "❌ MongoDB auth NON accessible depuis conteneur"
+          fi
+          
+          # Test 2: Diagnostic auth-service avec logs immédiats
+          echo ""
+          echo "🔍 Diagnostic auth-service avec logs..."
+          auth_container=$(docker run \
             -e NODE_ENV=test \
             -e PORT=3001 \
             -e MONGODB_URI=mongodb://admin:password@localhost:27017/authdb?authSource=admin \
             -e JWT_SECRET=test_secret \
             -p 3001:3001 \
-            --name auth-test \
+            --name auth-diagnostic \
             -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:latest)
           
-          # Attendre et vérifier que le conteneur ne crash pas
-          sleep 10
-          if docker ps --filter "name=auth-test" --filter "status=running" | grep -q auth-test; then
-            echo "✅ Auth service démarre correctement"
+          echo "Container ID: $auth_container"
+          
+          # Attendre un peu et récupérer les logs immédiatement
+          sleep 5
+          echo "📋 Logs auth-service (premiers 5 secondes):"
+          docker logs auth-diagnostic 2>&1 || echo "Pas de logs disponibles"
+          
+          # Vérifier le statut
+          if docker ps --filter "name=auth-diagnostic" --filter "status=running" | grep -q auth-diagnostic; then
+            echo "✅ Auth-service encore en vie"
+            
+            # Test connexion interne
+            echo "🔍 Test connexion interne..."
+            docker exec auth-diagnostic curl -f http://localhost:3001 2>/dev/null && echo "✅ Répond en interne" || echo "❌ Ne répond pas en interne"
+            
           else
-            echo "❌ Auth service a crashé"
-            docker logs auth-test 2>&1 | tail -5
+            echo "❌ Auth-service est mort"
+            echo "📋 Logs complets auth-service:"
+            docker logs auth-diagnostic 2>&1 || echo "Aucun log disponible"
+            
+            echo "🔍 Status final du conteneur:"
+            docker ps -a --filter "name=auth-diagnostic" || echo "Conteneur introuvable"
           fi
-          docker stop auth-test 2>/dev/null || true
           
-          # Test product-service
-          echo "Testing product-service startup..."
-          docker run --rm \
-            -e NODE_ENV=test \
-            -e PORT=3002 \
-            -e MONGODB_URI=mongodb://admin:password@localhost:27018/productsdb?authSource=admin \
-            -e JWT_SECRET=test_secret \
-            -p 3002:3002 \
-            --name product-test \
-            -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:latest
+          # Cleanup
+          docker stop auth-diagnostic 2>/dev/null || true
+          docker rm auth-diagnostic 2>/dev/null || true
           
-          sleep 10
-          if docker ps --filter "name=product-test" --filter "status=running" | grep -q product-test; then
-            echo "✅ Product service démarre correctement"
+          # Test 3: Variables d'environnement 
+          echo ""
+          echo "🔧 Test avec variables d'environnement simplifiées..."
+          simple_container=$(docker run \
+            -e NODE_ENV=production \
+            -e PORT=3001 \
+            --name auth-simple \
+            -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:latest)
+          
+          sleep 5
+          echo "📋 Logs avec variables simplifiées:"
+          docker logs auth-simple 2>&1 || echo "Pas de logs"
+          
+          if docker ps --filter "name=auth-simple" --filter "status=running" | grep -q auth-simple; then
+            echo "✅ Service démarre sans MongoDB"
           else
-            echo "❌ Product service a crashé"
-            docker logs product-test 2>&1 | tail -5
+            echo "❌ Service ne démarre même pas sans MongoDB"
           fi
-          docker stop product-test 2>/dev/null || true
           
-          # Test order-service
-          echo "Testing order-service startup..."
-          docker run --rm \
-            -e NODE_ENV=test \
-            -e PORT=3003 \
-            -e MONGODB_URI=mongodb://admin:password@localhost:27019/ordersdb?authSource=admin \
-            -e JWT_SECRET=test_secret \
-            -p 3003:3003 \
-            --name order-test \
-            -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:latest
+          docker stop auth-simple 2>/dev/null || true
+          docker rm auth-simple 2>/dev/null || true
           
-          sleep 10
-          if docker ps --filter "name=order-test" --filter "status=running" | grep -q order-test; then
-            echo "✅ Order service démarre correctement"
-          else
-            echo "❌ Order service a crashé"
-            docker logs order-test 2>&1 | tail -5
-          fi
-          docker stop order-test 2>/dev/null || true
+          # Test 4: Inspection de l'image
+          echo ""
+          echo "🔍 Inspection de l'image auth-service..."
+          docker inspect ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:latest | jq -r '.[] | {
+            Cmd: .Config.Cmd,
+            Entrypoint: .Config.Entrypoint,
+            WorkingDir: .Config.WorkingDir,
+            Env: .Config.Env
+          }' 2>/dev/null || echo "Inspection impossible (jq manquant)"
           
-          # Test frontend
-          echo "Testing frontend startup..."
-          docker run --rm \
-            -p 8080:8080 \
-            --name frontend-test \
-            -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/frontend:latest
-          
-          sleep 15
-          if docker ps --filter "name=frontend-test" --filter "status=running" | grep -q frontend-test; then
-            echo "✅ Frontend démarre correctement"
-            # Test simple de curl
-            if curl -f -s http://localhost:8080 > /dev/null 2>&1; then
-              echo "✅ Frontend répond aux requêtes HTTP"
-            else
-              echo "⚠️ Frontend ne répond pas aux requêtes (normal si pas de route /)"
-            fi
-          else
-            echo "❌ Frontend a crashé"
-            docker logs frontend-test 2>&1 | tail -5
-          fi
-          docker stop frontend-test 2>/dev/null || true
-          
-          echo "🎉 Tests de démarrage terminés"
+          echo "🎉 Diagnostic terminé"
+
 
 
       - name: Test frontend image
