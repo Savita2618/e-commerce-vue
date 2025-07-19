@@ -226,7 +226,6 @@ jobs:
           # Optimisation pour CI
           MONGOMS_DOWNLOAD_URL: https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2004-4.4.18.tgz
         
-        
       - name: Check coverage files
         id: coverage
         working-directory: ${{ steps.workdir.outputs.path }}
@@ -239,25 +238,13 @@ jobs:
             echo "⚠️ Pas de fichiers de coverage pour ${{ matrix.service }}"
           fi
         
-      - name: Run tests with timeout
-        timeout-minutes: 15  # Éviter les jobs qui traînent
-        working-directory: ${{ steps.workdir.outputs.path }}
-        run: |
-          timeout 900 npm test || {
-            echo "⚠️ Tests timeout après 15min"
-            exit 1
-          }
-
-      - name: Upload test reports
-        if: always()
+      - name: Upload coverage reports
+        if: steps.coverage.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ matrix.service }}
-          path: |
-            ${{ steps.workdir.outputs.path }}/coverage/
-            ${{ steps.workdir.outputs.path }}/test-results.xml
-            ${{ steps.workdir.outputs.path }}/junit.xml
-          retention-days: 14  # Plus long que 7 jours
+          name: ${{ matrix.service }}-coverage
+          path: ${{ steps.workdir.outputs.path }}/coverage/
+          retention-days: 7  
 
   # ===================================
   # 🔒 SECURITY SCAN TRIVY - CORRIGÉ !
