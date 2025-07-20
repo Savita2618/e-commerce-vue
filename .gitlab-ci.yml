@@ -1,3 +1,8 @@
+# ===================================
+# GitLab CI/CD Principal - AVEC TEMPLATES ESGI
+# Version refactorisée conforme aux exigences
+# ===================================
+
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
@@ -10,6 +15,19 @@ stages:
   - security
   - integration
   - summary
+
+# ===================================
+# INCLUSION DES TEMPLATES ESGI
+# ===================================
+include:
+  - local: 'ci/build-auth.yml'
+  - local: 'ci/build-product.yml'
+  - local: 'ci/build-order.yml'
+  - local: 'ci/build-frontend.yml'
+
+# ===================================
+# JOBS PRINCIPAUX (sans les builds)
+# ===================================
 
 validate:
   stage: validate
@@ -26,81 +44,13 @@ validate:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
 
-build-auth-service:
-  stage: build
-  image: docker:24-dind
-  services:
-    - docker:24-dind
-  before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-  script:
-    - echo "Build auth-service"
-    - cd services/auth-service
-    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
-    - docker build -t $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:$IMAGE_TAG -t $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:latest .
-    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:$IMAGE_TAG
-    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/auth-service:latest
-    - echo "Auth-service build termine"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == "develop"
+# ===================================
+# JOBS BUILD définis dans ci/build-*.yml
+# ===================================
 
-build-product-service:
-  stage: build
-  image: docker:24-dind
-  services:
-    - docker:24-dind
-  before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-  script:
-    - echo "Build product-service"
-    - cd services/product-service
-    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
-    - docker build -t $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$IMAGE_TAG -t $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest .
-    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$IMAGE_TAG
-    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest
-    - echo "Product-service build termine"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == "develop"
-
-build-order-service:
-  stage: build
-  image: docker:24-dind
-  services:
-    - docker:24-dind
-  before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-  script:
-    - echo "Build order-service"
-    - cd services/order-service
-    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
-    - docker build -t $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:$IMAGE_TAG -t $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:latest .
-    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:$IMAGE_TAG
-    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:latest
-    - echo "Order-service build termine"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == "develop"
-
-build-frontend:
-  stage: build
-  image: docker:24-dind
-  services:
-    - docker:24-dind
-  before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-  script:
-    - echo "Build frontend"
-    - cd frontend
-    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
-    - docker build -t $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:$IMAGE_TAG -t $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:latest .
-    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:$IMAGE_TAG
-    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/frontend:latest
-    - echo "Frontend build termine"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == "develop"
+# ===================================
+# JOBS TEST
+# ===================================
 
 test-auth:
   stage: test
@@ -197,6 +147,9 @@ test-frontend:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
+# ===================================
+# JOBS SECURITY
+# ===================================
 
 security-scan-auth:
   stage: security
@@ -298,6 +251,9 @@ security-scan-frontend:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
+# ===================================
+# JOBS INTEGRATION
+# ===================================
 
 integration-tests:
   stage: integration
@@ -333,13 +289,17 @@ integration-tests:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
+# ===================================
+# SUMMARY
+# ===================================
+
 summary:
   stage: summary
   image: alpine:latest
   script:
     - echo "PIPELINE GITLAB TERMINE"
     - echo "VALIDATION Structure validee"
-    - echo "BUILD 4 services construits"
+    - echo "BUILD 4 services construits avec templates ESGI"
     - echo "TESTS Tests unitaires executes"
     - echo "SECURITY Scans Trivy effectues"
     - echo "INTEGRATION Tests integration executes"
@@ -351,6 +311,7 @@ summary:
     - echo "BRANCHE $CI_COMMIT_BRANCH"
     - echo "COMMIT $CI_COMMIT_SHORT_SHA"
     - echo "PIPELINE ID $CI_PIPELINE_ID"
+    - echo "TEMPLATES ESGI INTEGRES AVEC SUCCES"
     - echo "PIPELINE SOPHISTIQUE TERMINE AVEC SUCCES"
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
