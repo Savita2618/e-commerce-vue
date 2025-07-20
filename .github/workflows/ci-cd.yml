@@ -116,7 +116,10 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest 
+            
+#Créer latest sur toutes les branches           
+#enable={{is_default_branch}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
