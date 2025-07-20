@@ -1,8 +1,3 @@
-# ===================================
-# Template Build - Order Service
-# Extrait du pipeline fonctionnel
-# ===================================
-
 build-order-service:
   stage: build
   image: docker:24-dind
@@ -18,18 +13,6 @@ build-order-service:
     - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:$IMAGE_TAG
     - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/order-service:latest
     - echo "Order-service build termine"
-  variables:
-    SERVICE_NAME: order-service
-    SERVICE_PATH: services/order-service
-  cache:
-    key: order-$CI_COMMIT_REF_SLUG
-    paths:
-      - services/order-service/node_modules/
-  artifacts:
-    when: always
-    paths:
-      - services/order-service/package.json
-    expire_in: 1 hour
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
