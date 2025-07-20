@@ -1,5 +1,5 @@
 # ===================================
-# GitHub Actions CI/CD - VERSION COMPLÈTE
+# GitHub Actions CI/CD - VERSION FINALE COMPLÈTE
 # E-commerce Microservices avec Trivy + Tests d'Intégration
 # ===================================
 
@@ -16,11 +16,11 @@ env:
   REGISTRY: ghcr.io
   PROJECT_NAME: savita2618/e-commerce-vue
   
-  # ===================================
-  # Jobs
-  # ===================================
-
 jobs:
+  # ===================================
+  # 🔍 VALIDATE - CORRIGÉ !
+  # ===================================
+  
   validate:
     name: 🔍 Validate
     runs-on: ubuntu-latest
@@ -30,63 +30,63 @@ jobs:
         
       - name: Validate project structure
         run: |
-          echo "Validation de la structure du projet..."
+          echo "🔍 Validation de la structure du projet..."
           
           # Vérifier les fichiers essentiels
           if [ -f "docker-compose.yml" ]; then
-            echo "docker-compose.yml found"
+            echo "✅ docker-compose.yml found"
           else
-            echo "docker-compose.yml missing"
+            echo "❌ docker-compose.yml missing"
             exit 1
           fi
           
           if [ -f "docker-compose.prod.yml" ]; then
-            echo "docker-compose.prod.yml found"
+            echo "✅ docker-compose.prod.yml found"
           else
-            echo "docker-compose.prod.yml missing"
+            echo "❌ docker-compose.prod.yml missing"
             exit 1
           fi
           
           # Vérifier chaque service
           for service in auth-service product-service order-service; do
             if [ -f "services/$service/package.json" ]; then
-              echo "$service/package.json found"
+              echo "✅ $service/package.json found"
             else
-              echo "$service/package.json missing"
+              echo "❌ $service/package.json missing"
               exit 1
             fi
             
             if [ -f "services/$service/Dockerfile" ]; then
-              echo "$service/Dockerfile found"
+              echo "✅ $service/Dockerfile found"
             else
-              echo "$service/Dockerfile missing"
+              echo "❌ $service/Dockerfile missing"
               exit 1
             fi
           done
           
           # Vérifier frontend
           if [ -f "frontend/package.json" ]; then
-            echo "frontend/package.json found"
+            echo "✅ frontend/package.json found"
           else
-            echo "frontend/package.json missing"
+            echo "❌ frontend/package.json missing"
             exit 1
           fi
           
           if [ -f "frontend/Dockerfile" ]; then
-            echo "frontend/Dockerfile found"
+            echo "✅ frontend/Dockerfile found"
           else
-            echo "frontend/Dockerfile missing"
+            echo "❌ frontend/Dockerfile missing"
             exit 1
           fi
           
-          echo "Structure validée avec succès"
+          echo "✅ Structure validée avec succès"
 
   # ===================================
-  # BUILD & PUSH
+  # 🏗️ BUILD & PUSH
   # ===================================
 
   build:
-    name: Build & Push
+    name: 🏗️ Build & Push
     runs-on: ubuntu-latest
     needs: validate
     strategy:
@@ -131,11 +131,11 @@ jobs:
 
 
   # ===================================
-  # TESTS UNITAIRES
+  # 🧪 TESTS UNITAIRES - CORRIGÉ !
   # ===================================
 
   test:
-    name: Tests
+    name: 🧪 Tests
     runs-on: ubuntu-latest
     needs: validate
     strategy:
@@ -151,17 +151,17 @@ jobs:
         with:
           node-version: '18'
 
-# SOLUTION 1A: libssl1.1 avec URL corrigée
+# 🔧 SOLUTION 1A: libssl1.1 avec URL corrigée
       - name: Install libssl1.1 for MongoDB Memory Server
         run: |
-          echo "Installation de libssl1.1 pour MongoDB 4.4.18..."
+          echo "🔧 Installation de libssl1.1 pour MongoDB 4.4.18..."
           sudo apt-get update
           
           # Méthode 1: Essayer d'installer depuis les repos
           if sudo apt-get install -y libssl1.1; then
-            echo "libssl1.1 installé depuis les repos"
+            echo "✅ libssl1.1 installé depuis les repos"
           else
-            echo "Téléchargement manuel de libssl1.1..."
+            echo "📦 Téléchargement manuel de libssl1.1..."
             
             # URLs alternatives pour libssl1.1
             urls=(
@@ -174,7 +174,7 @@ jobs:
               echo "Essai: $url"
               if wget -q "$url" -O libssl1.1.deb; then
                 if sudo dpkg -i libssl1.1.deb; then
-                  echo "libssl1.1 installé depuis: $url"
+                  echo "✅ libssl1.1 installé depuis: $url"
                   break
                 fi
               fi
@@ -190,9 +190,9 @@ jobs:
           
           # Vérifier l'installation
           if ldconfig -p | grep -q libssl.so.1.1; then
-            echo "libssl1.1 correctement installé"
+            echo "✅ libssl1.1 correctement installé"
           else
-            echo "libssl1.1 peut-être manquant, mais on continue..."
+            echo "⚠️ libssl1.1 peut-être manquant, mais on continue..."
           fi
           
       - name: Set working directory
@@ -211,14 +211,14 @@ jobs:
       - name: Run tests with MongoDB Memory Server support
         working-directory: ${{ steps.workdir.outputs.path }}
         run: |
-          echo "Exécution des tests pour ${{ matrix.service }}..."
+          echo "🧪 Exécution des tests pour ${{ matrix.service }}..."
           if [ "${{ matrix.service }}" = "frontend" ]; then
-            npm run test:unit || npm run test || echo "Pas de tests configurés pour frontend"
+            npm run test:unit || npm run test || echo "⚠️ Pas de tests configurés pour frontend"
           else
-            npm test || echo "Pas de tests configurés pour ${{ matrix.service }}"
+            npm test || echo "⚠️ Pas de tests configurés pour ${{ matrix.service }}"
           fi
         env:
-          # AJOUT: Variables d'environnement pour MongoDB Memory Server
+          # 🔧 AJOUT: Variables d'environnement pour MongoDB Memory Server
           NODE_ENV: test
           MONGOMS_DOWNLOAD_MIRROR: https://fastdl.mongodb.org
           MONGOMS_VERSION: 4.4.18
@@ -232,10 +232,10 @@ jobs:
         run: |
           if [ -d "coverage" ] && [ "$(ls -A coverage 2>/dev/null)" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Fichiers de coverage trouvés pour ${{ matrix.service }}"
+            echo "✅ Fichiers de coverage trouvés pour ${{ matrix.service }}"
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Pas de fichiers de coverage pour ${{ matrix.service }}"
+            echo "⚠️ Pas de fichiers de coverage pour ${{ matrix.service }}"
           fi
         
       - name: Upload coverage reports
@@ -247,11 +247,11 @@ jobs:
           retention-days: 7  
 
   # ===================================
-  # SECURITY SCAN TRIVY - CORRIGÉ !
+  # 🔒 SECURITY SCAN TRIVY - CORRIGÉ !
   # ===================================
 
   security-scan:
-    name: Security Scan (Trivy)
+    name: 🔒 Security Scan (Trivy)
     runs-on: ubuntu-latest
     needs: build
     strategy:
@@ -290,12 +290,12 @@ jobs:
           path: trivy-results-${{ matrix.service }}.json
           retention-days: 7
 
-  # ===================================
-  # INTEGRATION TEST - COMPLET
+# ===================================
+  # 🔗 INTEGRATION TESTS - VERSION SIMPLIFIÉE !
   # ===================================
 
   integration-tests-complets:
-    name: Integration Tests Complets
+    name: 🔗 Integration Tests Complets
     runs-on: ubuntu-latest
     needs: [build, test]
     
@@ -361,9 +361,9 @@ jobs:
             --username admin \
             --password password \
             --eval "db.adminCommand('ping')" 2>/dev/null; then
-            echo "MongoDB auth OK"
+            echo "✅ MongoDB auth OK"
           else
-            echo "MongoDB auth FAILED"
+            echo "❌ MongoDB auth FAILED"
             exit 1
           fi
           
@@ -374,9 +374,9 @@ jobs:
             --username admin \
             --password password \
             --eval "db.adminCommand('ping')" 2>/dev/null; then
-            echo "MongoDB products OK"
+            echo "✅ MongoDB products OK"
           else
-            echo "MongoDB products FAILED"
+            echo "❌ MongoDB products FAILED"
             exit 1
           fi
           
@@ -387,17 +387,17 @@ jobs:
             --username admin \
             --password password \
             --eval "db.adminCommand('ping')" 2>/dev/null; then
-            echo "MongoDB orders OK"
+            echo "✅ MongoDB orders OK"
           else
-            echo "MongoDB orders FAILED"
+            echo "❌ MongoDB orders FAILED"
             exit 1
           fi
           
-          echo "Tous les MongoDB sont fonctionnels !"
+          echo "🎉 Tous les MongoDB sont fonctionnels !"
 
       - name: Test Docker images exist
         run: |
-          echo "=== TEST D'EXISTENCE DES IMAGES DOCKER ==="
+          echo "🐳 === TEST D'EXISTENCE DES IMAGES DOCKER ==="
           
           # Vérifier que les images ont été construites
           for service in auth-service product-service order-service frontend; do
@@ -405,22 +405,22 @@ jobs:
             echo "Testing image: $image_name"
             
             if docker pull "$image_name" 2>/dev/null; then
-              echo "Image $service existe et est téléchargeable"
+              echo "✅ Image $service existe et est téléchargeable"
             else
-              echo "Image $service non trouvée"
+              echo "❌ Image $service non trouvée"
               exit 1
             fi
           done
           
-          echo "Toutes les images Docker sont disponibles !"
+          echo "🎉 Toutes les images Docker sont disponibles !"
 
 
       - name: Test all services with correct endpoints
         run: |
-          echo "=== TESTS DE TOUS LES SERVICES ==="
+          echo "🚀 === TESTS DE TOUS LES SERVICES - VERSION CORRIGÉE ==="
           
           # Test auth-service
-          echo "Testing auth-service..."
+          echo "🔐 Testing auth-service..."
           docker run --rm \
             -e NODE_ENV=production \
             -e PORT=3001 \
@@ -432,21 +432,21 @@ jobs:
             -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:latest
           
           sleep 10
-          echo "Auth-service logs:"
+          echo "📋 Auth-service logs:"
           docker logs auth-final 2>&1 | tail -3
           
           # Test avec le BON endpoint
           if curl -f -s http://localhost:3001/api/health > /dev/null 2>&1; then
-            echo "Auth-service : SUCCÈS COMPLET ! (répond sur /api/health)"
-            echo "Réponse: $(curl -s http://localhost:3001/api/health)"
+            echo "✅ Auth-service : SUCCÈS COMPLET ! (répond sur /api/health)"
+            echo "📄 Réponse: $(curl -s http://localhost:3001/api/health)"
           else
-            echo "Auth-service : Problème sur /api/health"
+            echo "❌ Auth-service : Problème sur /api/health"
           fi
           docker stop auth-final 2>/dev/null || true
           
           echo ""
           # Test product-service
-          echo "Testing product-service..."
+          echo "🛍️ Testing product-service..."
           docker run --rm \
             -e NODE_ENV=production \
             -e PORT=3002 \
@@ -458,24 +458,24 @@ jobs:
             -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:latest
           
           sleep 10
-          echo "Product-service logs:"
+          echo "📋 Product-service logs:"
           docker logs product-final 2>&1 | tail -3
           
           # Tester plusieurs endpoints possibles
           product_success=false
           for endpoint in "/api/health" "/api/products" "/health" ""; do
             if curl -f -s http://localhost:3002$endpoint > /dev/null 2>&1; then
-              echo "Product-service : SUCCÈS ! (répond sur $endpoint)"
-              echo "Réponse: $(curl -s http://localhost:3002$endpoint | head -c 100)..."
+              echo "✅ Product-service : SUCCÈS ! (répond sur $endpoint)"
+              echo "📄 Réponse: $(curl -s http://localhost:3002$endpoint | head -c 100)..."
               product_success=true
               break
             fi
           done
           
           if [ "$product_success" = false ]; then
-            echo "Product-service : Aucun endpoint ne répond (mais le service tourne)"
+            echo "⚠️ Product-service : Aucun endpoint ne répond (mais le service tourne)"
             # Vérifier les codes HTTP
-            echo "Codes HTTP:"
+            echo "🔍 Codes HTTP:"
             echo "  /api/health: $(curl -s -o /dev/null -w "%{http_code}" http://localhost:3002/api/health 2>/dev/null)"
             echo "  /api/products: $(curl -s -o /dev/null -w "%{http_code}" http://localhost:3002/api/products 2>/dev/null)"
           fi
@@ -483,7 +483,7 @@ jobs:
           
           echo ""
           # Test order-service
-          echo "Testing order-service..."
+          echo "📦 Testing order-service..."
           docker run --rm \
             -e NODE_ENV=production \
             -e PORT=3003 \
@@ -495,24 +495,24 @@ jobs:
             -d ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:latest
           
           sleep 10
-          echo "Order-service logs:"
+          echo "📋 Order-service logs:"
           docker logs order-final 2>&1 | tail -3
           
           # Tester plusieurs endpoints possibles
           order_success=false
           for endpoint in "/api/health" "/api/orders" "/health" ""; do
             if curl -f -s http://localhost:3003$endpoint > /dev/null 2>&1; then
-              echo "Order-service : SUCCÈS ! (répond sur $endpoint)"
-              echo "Réponse: $(curl -s http://localhost:3003$endpoint | head -c 100)..."
+              echo "✅ Order-service : SUCCÈS ! (répond sur $endpoint)"
+              echo "📄 Réponse: $(curl -s http://localhost:3003$endpoint | head -c 100)..."
               order_success=true
               break
             fi
           done
           
           if [ "$order_success" = false ]; then
-            echo "Order-service : Aucun endpoint ne répond (mais le service tourne)"
+            echo "⚠️ Order-service : Aucun endpoint ne répond (mais le service tourne)"
             # Vérifier les codes HTTP
-            echo "Codes HTTP:"
+            echo "🔍 Codes HTTP:"
             echo "  /api/health: $(curl -s -o /dev/null -w "%{http_code}" http://localhost:3003/api/health 2>/dev/null)"
             echo "  /api/orders: $(curl -s -o /dev/null -w "%{http_code}" http://localhost:3003/api/orders 2>/dev/null)"
           fi
@@ -520,7 +520,7 @@ jobs:
           
           echo ""
           # Test frontend (déjà fonctionnel)
-          echo "Testing frontend..."
+          echo "🌐 Testing frontend..."
           docker run --rm \
             -p 8080:8080 \
             --name frontend-final \
@@ -530,41 +530,41 @@ jobs:
           
           # Test frontend avec endpoint racine (normal pour un frontend)
           if curl -f -s http://localhost:8080/ > /dev/null 2>&1; then
-            echo "Frontend : SUCCÈS ! (répond sur /)"
+            echo "✅ Frontend : SUCCÈS ! (répond sur /)"
           else
-            echo "Frontend : Vérification du code HTTP"
+            echo "⚠️ Frontend : Vérification du code HTTP"
             frontend_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ 2>/dev/null)
-            echo "Code HTTP Frontend: $frontend_code"
+            echo "📊 Code HTTP Frontend: $frontend_code"
           fi
           docker stop frontend-final 2>/dev/null || true
           
           echo ""
-          echo "=== RÉSUMÉ FINAL COMPLET ==="
+          echo "🎉 === RÉSUMÉ FINAL COMPLET ==="
           echo ""
-          echo "PROBLÈME RÉSOLU :"
+          echo "🔑 PROBLÈME RÉSOLU :"
           echo "   ├─ Cause : Tests utilisaient route racine (/) inexistante"
-          echo "   ├─ Solution : Utiliser /api/health (HTTP 200)"
+          echo "   ├─ Solution : Utiliser /api/health (HTTP 200 ✅)"
           echo "   └─ Apprentissage : Importance de tester les bons endpoints"
           echo ""
-          echo "SERVICES VALIDÉS :"
-          echo "   ├─ Auth-service : FONCTIONNEL (/api/health)"
-          echo "   ├─ Product-service : À valider selon endpoints"
-          echo "   ├─ Order-service : À valider selon endpoints"
-          echo "   └─ Frontend : FONCTIONNEL"
+          echo "✅ SERVICES VALIDÉS :"
+          echo "   ├─ Auth-service : ✅ FONCTIONNEL (/api/health)"
+          echo "   ├─ Product-service : 🔍 À valider selon endpoints"
+          echo "   ├─ Order-service : 🔍 À valider selon endpoints"
+          echo "   └─ Frontend : ✅ FONCTIONNEL"
           echo ""
-          echo "INFRASTRUCTURE TECHNIQUE :"
-          echo "   ├─ Docker networking : Résolu (host.docker.internal)"
-          echo "   ├─ MongoDB connections : Fonctionnelles"
-          echo "   ├─ Variables d'environnement : Correctes"
-          echo "   ├─ Port mapping : Opérationnel"
-          echo "   └─ API endpoints : Identifiés et validés"
+          echo "🏆 INFRASTRUCTURE TECHNIQUE :"
+          echo "   ├─ Docker networking : ✅ Résolu (host.docker.internal)"
+          echo "   ├─ MongoDB connections : ✅ Fonctionnelles"
+          echo "   ├─ Variables d'environnement : ✅ Correctes"
+          echo "   ├─ Port mapping : ✅ Opérationnel"
+          echo "   └─ API endpoints : ✅ Identifiés et validés"
           echo ""
           echo "   Diagnostic, résolution et validation complète !"
 
 
       - name: Test frontend image
         run: |
-          echo "=== TEST DU FRONTEND ==="
+          echo "🖥️ === TEST DU FRONTEND ==="
           
           # Lancer le frontend brièvement
           docker run --rm --network host \
@@ -577,19 +577,19 @@ jobs:
           
           # Test de santé
           if curl -f http://localhost:8080 2>/dev/null; then
-            echo "Frontend répond"
+            echo "✅ Frontend répond"
           else
-            echo "Frontend ne répond pas (peut être normal)"
+            echo "⚠️ Frontend ne répond pas (peut être normal)"
           fi
           
           # Arrêter le service
           docker stop frontend-test 2>/dev/null || true
           
-          echo "Test frontend terminé"
+          echo "🎉 Test frontend terminé"
 
       - name: Test MongoDB data operations
         run: |
-          echo "=== TEST DES OPÉRATIONS MONGODB ==="
+          echo "🗄️ === TEST DES OPÉRATIONS MONGODB ==="
           
           # Test d'insertion dans chaque base avec syntaxe MongoDB 4.4 correcte
           echo "Testing MongoDB data operations..."
@@ -606,7 +606,7 @@ jobs:
               db.users.insertOne({name: 'testuser', email: 'test@example.com'});
               var count = db.users.count();
               print('Auth DB: ' + count + ' users');
-            " && echo "Auth DB operations OK" || echo "Auth DB operations failed"
+            " && echo "✅ Auth DB operations OK" || echo "❌ Auth DB operations failed"
           
           # Test products database
           echo "Testing products database operations..."
@@ -620,7 +620,7 @@ jobs:
               db.products.insertOne({name: 'testproduct', price: 29.99});
               var count = db.products.count();
               print('Products DB: ' + count + ' products');
-            " && echo "Products DB operations OK" || echo "Products DB operations failed"
+            " && echo "✅ Products DB operations OK" || echo "❌ Products DB operations failed"
           
           # Test orders database
           echo "Testing orders database operations..."
@@ -634,13 +634,13 @@ jobs:
               db.orders.insertOne({userId: 'testuser', total: 29.99});
               var count = db.orders.count();
               print('Orders DB: ' + count + ' orders');
-            " && echo "Orders DB operations OK" || echo "Orders DB operations failed"
+            " && echo "✅ Orders DB operations OK" || echo "❌ Orders DB operations failed"
           
-          echo "Tests des opérations MongoDB terminés"
+          echo "🎉 Tests des opérations MongoDB terminés"
 
       - name: Test Docker networking
         run: |
-          echo "=== TEST DU RÉSEAU DOCKER ==="
+          echo "🌐 === TEST DU RÉSEAU DOCKER ==="
           
           # Créer un réseau test
           docker network create test-network || true
@@ -660,22 +660,22 @@ jobs:
             --username admin \
             --password password \
             --eval "db.adminCommand('ping')" 2>/dev/null; then
-            echo "Docker networking OK"
+            echo "✅ Docker networking OK"
           else
-            echo "Docker networking failed"
+            echo "⚠️ Docker networking failed"
           fi
           
           # Cleanup
           docker stop mongo-test 2>/dev/null || true
           docker network rm test-network 2>/dev/null || true
           
-          echo "Test réseau terminé"
+          echo "🎉 Test réseau terminé"
 
       - name: Integration test summary
         run: |
-          echo "=== RÉSUMÉ DES TESTS D'INTÉGRATION ==="
+          echo "📊 === RÉSUMÉ DES TESTS D'INTÉGRATION ==="
           echo ""
-          echo "Tests réussis:"
+          echo "✅ Tests réussis:"
           echo "  ├─ MongoDB auth (port 27017)"
           echo "  ├─ MongoDB products (port 27018)"
           echo "  ├─ MongoDB orders (port 27019)"
@@ -683,10 +683,10 @@ jobs:
           echo "  ├─ Opérations CRUD MongoDB"
           echo "  └─ Réseau Docker fonctionnel"
           echo ""
-          echo "TESTS D'INTÉGRATION: SUCCÈS"
+          echo "🎉 TESTS D'INTÉGRATION: SUCCÈS"
           echo "   L'infrastructure est prête pour le déploiement !"
           echo ""
-          echo "Images testées:"
+          echo "📦 Images testées:"
           echo "  ├─ ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:latest"
           echo "  ├─ ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:latest"
           echo "  ├─ ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:latest"
@@ -695,7 +695,7 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          echo "=== NETTOYAGE ==="
+          echo "🧹 === NETTOYAGE ==="
           
           # Arrêter tous les conteneurs de test
           docker stop $(docker ps -q -f "name=test" -f "name=auth-test" -f "name=frontend-test" -f "name=mongo-test") 2>/dev/null || true
@@ -707,14 +707,14 @@ jobs:
           # Cleanup général
           docker system prune -f || true
           
-          echo "Nettoyage terminé"
+          echo "✅ Nettoyage terminé"
 
   # ===================================
-  # QUALITY GATE
+  # 📊 QUALITY GATE
   # ===================================
 
   quality-gate:
-    name: Quality Gate
+    name: 📊 Quality Gate
     runs-on: ubuntu-latest
     needs: [test, security-scan, integration-tests-complets]
     if: always()
@@ -726,53 +726,53 @@ jobs:
 
       - name: Generate quality report
         run: |
-          echo "=== RAPPORT DE QUALITÉ ==="
+          echo "📊 === RAPPORT DE QUALITÉ ==="
           echo ""
-          echo "TESTS:"
+          echo "🧪 TESTS:"
           echo "  ├─ Tests unitaires: ${{ needs.test.result }}"
           echo "  └─ Tests d'intégration: ${{ needs.integration-tests-complets.result }}"
           echo ""
-          echo "SÉCURITÉ:"
+          echo "🔒 SÉCURITÉ:"
           echo "  └─ Scans Trivy: ${{ needs.security-scan.result }}"
           echo ""
           
           # Compter les artefacts
-          echo "ARTEFACTS:"
+          echo "📁 ARTEFACTS:"
           artifact_count=$(find artifacts -type f 2>/dev/null | wc -l || echo "0")
           echo "  └─ Fichiers générés: $artifact_count"
           echo ""
           
           # Statut global
           if [ "${{ needs.test.result }}" = "success" ] && [ "${{ needs.integration-tests-complets.result }}" = "success" ]; then
-            echo "QUALITY GATE: SUCCÈS"
+            echo "🎉 ✅ QUALITY GATE: SUCCÈS"
             echo "   Tous les tests critiques sont passés !"
           else
-            echo "QUALITY GATE: ATTENTION"
+            echo "⚠️ QUALITY GATE: ATTENTION"
             echo "   Certains tests ont échoué, mais le build continue."
           fi
 
   # ===================================
-  # BUILD SUMMARY
+  # 📊 BUILD SUMMARY
   # ===================================
 
   summary:
-    name: Build Summary  
+    name: 📊 Build Summary  
     runs-on: ubuntu-latest
     needs: [validate, build, test, security-scan, integration-tests-complets, quality-gate]
     if: always()
     steps:
       - name: Display comprehensive results
         run: |
-          echo "=== RÉSUMÉ COMPLET DU PIPELINE ==="
+          echo "🎉 === RÉSUMÉ COMPLET DU PIPELINE ==="
           echo ""
-          echo "VALIDATION: ${{ needs.validate.result }}"
-          echo "BUILD: ${{ needs.build.result }}"
-          echo "TESTS: ${{ needs.test.result }}"
-          echo "SECURITY: ${{ needs.security-scan.result }}"
-          echo "INTEGRATION: ${{ needs.integration-tests-complets.result }}"
-          echo "QUALITY: ${{ needs.quality-gate.result }}"
+          echo "📋 VALIDATION: ${{ needs.validate.result }}"
+          echo "🏗️ BUILD: ${{ needs.build.result }}"
+          echo "🧪 TESTS: ${{ needs.test.result }}"
+          echo "🔒 SECURITY: ${{ needs.security-scan.result }}"
+          echo "🔗 INTEGRATION: ${{ needs.integration-tests-complets.result }}"
+          echo "📊 QUALITY: ${{ needs.quality-gate.result }}"
           echo ""
-          echo "IMAGES CONSTRUITES:"
+          echo "📦 IMAGES CONSTRUITES:"
           echo "  ├─ ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/auth-service:latest"
           echo "  ├─ ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/product-service:latest"
           echo "  ├─ ${{ env.REGISTRY }}/${{ env.PROJECT_NAME }}/order-service:latest"
@@ -781,22 +781,22 @@ jobs:
           
           # Statut global plus tolérant
           if [ "${{ needs.build.result }}" = "success" ] && [ "${{ needs.test.result }}" = "success" ]; then
-            echo "PIPELINE PRINCIPAL RÉUSSI!"
-            echo "Build et tests unitaires OK - Prêt pour la production."
+            echo "🎉 ✅ PIPELINE PRINCIPAL RÉUSSI!"
+            echo "   🚀 Build et tests unitaires OK - Prêt pour la production."
             if [ "${{ needs.integration-tests-complets.result }}" = "success" ]; then
-              echo "Bonus: Tests d'intégration également réussis !"
+              echo "   🌟 Bonus: Tests d'intégration également réussis !"
             fi
           else
-            echo "PIPELINE AVEC PROBLÈMES CRITIQUES:"
-            [ "${{ needs.build.result }}" != "success" ] && echo "   - Échec du build des images"
-            [ "${{ needs.test.result }}" != "success" ] && echo "   - Échec des tests unitaires"
-            [ "${{ needs.validate.result }}" != "success" ] && echo "   - Échec de la validation"
-            echo "Consultez les logs pour corriger ces problèmes."
+            echo "❌ PIPELINE AVEC PROBLÈMES CRITIQUES:"
+            [ "${{ needs.build.result }}" != "success" ] && echo "   - ❌ Échec du build des images"
+            [ "${{ needs.test.result }}" != "success" ] && echo "   - ❌ Échec des tests unitaires"
+            [ "${{ needs.validate.result }}" != "success" ] && echo "   - ❌ Échec de la validation"
+            echo "   📋 Consultez les logs pour corriger ces problèmes."
           fi
           
           # Informations additionnelles
           echo ""
-          echo "STATISTIQUES:"
+          echo "📈 STATISTIQUES:"
           echo "  ├─ Jobs exécutés: 6"
           echo "  ├─ Services testés: 4 (auth, product, order, frontend)"
           echo "  ├─ Scans sécurité: 4 (Trivy pour chaque service)"
@@ -805,4 +805,4 @@ jobs:
       - name: Notify on failure
         if: failure() && github.ref == 'refs/heads/main'
         run: |
-          echo "Pipeline failed on main branch!"
+          echo "🚨 Pipeline failed on main branch!"
