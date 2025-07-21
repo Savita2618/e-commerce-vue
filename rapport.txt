@@ -1,8 +1,8 @@
 E-commerce Docker ESGI - Rapport de Monitoring
 =============================================
-Date: Mon 21 Jul 23:27:39 CEST 2025
+Date: mar. 22 juil. 2025 00:26:21 CEST
 Environnement: prod
-Généré par: etudiant
+Généré par: sav
 
 RÉSUMÉ EXÉCUTIF
 ===============
@@ -29,22 +29,22 @@ Frontend : OK (HTTP 200)
 
 RESSOURCES SYSTÈME
 ==================
-CPU: 50.0
-Mémoire: 46.7%
-Disque: 24%
-Load Average:  1.77, 1.24, 0.87
+CPU: 44,4
+Mémoire: 89,4%
+Disque: 89%
+Load Average:  3,08, 2,04, 1,24
 
 STATS DOCKER
 ============
-CONTAINER ID   NAME                    CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
-3f9200ae2290   nginx-proxy-prod        0.00%     3.816MiB / 7.661GiB   0.05%     6.81kB / 126B     147kB / 12.3kB    3
-daf94f7e3006   frontend-prod           0.00%     3.359MiB / 7.661GiB   0.04%     9.18kB / 4.63kB   8.19kB / 8.19kB   3
-1a58a1eab9cb   order-service-prod      0.05%     66.51MiB / 7.661GiB   0.85%     1.04MB / 273kB    20.5kB / 4.1kB    23
-8a871518a068   product-service-prod    0.00%     67.14MiB / 7.661GiB   0.86%     1.06MB / 286kB    4.09MB / 4.1kB    23
-93a504e88ef4   auth-service-prod       0.03%     63.46MiB / 7.661GiB   0.81%     1.04MB / 274kB    635kB / 4.1kB     23
-8ec421e7423c   mongodb-orders-prod     0.70%     214.5MiB / 7.661GiB   2.73%     258kB / 718kB     24.6kB / 23.4MB   33
-580b3a9d73e6   mongodb-auth-prod       0.67%     232MiB / 7.661GiB     2.96%     258kB / 718kB     28.8MB / 23.3MB   33
-a71d4ef01415   mongodb-products-prod   0.68%     208.6MiB / 7.661GiB   2.66%     271kB / 731kB     24.6kB / 23.3MB   34
+CONTAINER ID   NAME                    CPU %     MEM USAGE / LIMIT    MEM %     NET I/O           BLOCK I/O         PIDS
+15eff551da41   nginx-proxy-prod        0.00%     4.289MiB / 3.79GiB   0.11%     4.84kB / 126B     3.08MB / 12.3kB   3
+ccea0623302e   frontend-prod           0.00%     5.113MiB / 3.79GiB   0.13%     6.68kB / 2.34kB   12MB / 12.3kB     3
+7dc6f8fc79a9   order-service-prod      0.00%     79.53MiB / 3.79GiB   2.05%     307kB / 8.71kB    11.5MB / 8.19kB   23
+3152b930f330   product-service-prod    0.01%     88.91MiB / 3.79GiB   2.29%     312kB / 10.3kB    77.6MB / 8.19kB   23
+7a81f960db2a   auth-service-prod       0.01%     80.26MiB / 3.79GiB   2.07%     308kB / 8.99kB    18.7MB / 8.19kB   23
+8791a44de72c   mongodb-auth-prod       0.41%     81.36MiB / 3.79GiB   2.10%     13.9kB / 5.42kB   5.95MB / 127kB    33
+92bdb6bd72fc   mongodb-products-prod   0.39%     78.66MiB / 3.79GiB   2.03%     15.3kB / 6.43kB   76.1MB / 131kB    34
+b7119a94840f   mongodb-orders-prod     0.40%     73.39MiB / 3.79GiB   1.89%     13.6kB / 5.24kB   426kB / 131kB     33
 
 BASES DE DONNÉES
 ================
@@ -80,9 +80,9 @@ IPS DES SERVICES
 /order-service-prod: 192.168.100.22
 /product-service-prod: 192.168.100.21
 /auth-service-prod: 192.168.100.20
-/mongodb-orders-prod: 192.168.100.12
 /mongodb-auth-prod: 192.168.100.10
 /mongodb-products-prod: 192.168.100.11
+/mongodb-orders-prod: 192.168.100.12
 
 PORTS EXPOSÉS
 =============
