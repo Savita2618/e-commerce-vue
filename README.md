@@ -342,17 +342,6 @@ docker compose -f docker-compose.prod.yml ps
 ./scripts/monitoring.sh --metrics
 ```
 
-### deploy.sh - Déploiement PM2
-```bash
-# Déploiement avec PM2 (pré-production)
-./scripts/deploy.sh
-
-# Redémarrage des services
-./scripts/deploy.sh --restart
-
-# Arrêt des services
-./scripts/deploy.sh --stop
-```
 
 ## Tests des Services
 
