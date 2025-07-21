@@ -66,15 +66,14 @@ e-commerce-vue/
 ├── scripts/                         # Scripts d'automatisation
 │   ├── setup.sh                     # Installation environnement
 │   ├── run-tests.sh                 # Exécution des tests
-│   ├── deploy.sh                    # Déploiement PM2
+│   ├── deploy.sh                    # Déploiement
 │   ├── monitoring.sh                # Surveillance des services
 │   └── init-products.sh             # Initialisation des données
 ├── monitoring/                       # Configuration monitoring
 ├── backup/                          # Sauvegardes
 ├── docker-compose.yml               # Configuration développement
-├── docker-compose.prod.yml          # Configuration production
-├── docker-compose.prod.gitlab.yml   # Configuration GitLab CI/CD
-├── docker-compose.prod.gitlab.yml   # Configuration GitLab CI/CD
+├── docker-compose.prod.yml          # Configuration production (GITHUB)
+├── docker-compose.prod.gitlab.yml   # Configuration production (GITLAB)
 ├── .env.example                     # Variables d'environnement
 ├── .gitlab-ci.yml                   # Pipeline GitLab CI/CD
 ├── .dockerignore
