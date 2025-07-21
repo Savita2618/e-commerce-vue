@@ -17,7 +17,7 @@ stages:
   - summary
 
 # ===================================
-# INCLUSION DES TEMPLATES ESGI
+# INCLUSION DES TEMPLATES
 # ===================================
 include:
   - local: 'ci/build-auth.yml'

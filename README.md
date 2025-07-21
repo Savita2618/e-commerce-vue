@@ -311,35 +311,6 @@ docker stack services e-commerce
 
 ## Utilisation des Scripts
 
-### setup.sh - Installation et configuration
-```bash
-# Installation complète de l'environnement
-./scripts/setup.sh
-
-# Options disponibles
-./scripts/setup.sh --help
-./scripts/setup.sh --dev      # Configuration développement
-./scripts/setup.sh --prod     # Configuration production
-./scripts/setup.sh --clean    # Nettoyage complet
-```
-
-### run-tests.sh - Tests automatisés
-```bash
-# Exécution de tous les tests
-./scripts/run-tests.sh
-
-# Tests par service
-./scripts/run-tests.sh --service=auth
-./scripts/run-tests.sh --service=product
-./scripts/run-tests.sh --service=order
-./scripts/run-tests.sh --service=frontend
-
-# Tests d'intégration
-./scripts/run-tests.sh --integration
-
-# Tests avec couverture
-./scripts/run-tests.sh --coverage
-```
 
 ### deploy.sh - Déploiement automatisé
 ```bash
@@ -358,7 +329,7 @@ docker stack services e-commerce
 ./scripts/deploy.sh --restart
 
 # Utilisation avec registre spécifique
-./scripts/deploy.sh local    # Utilise les images locales
+./scripts/deploy.sh github    # Utilise le registre GitHub
 ./scripts/deploy.sh gitlab   # Utilise le registre GitLab
 ```
 
@@ -403,212 +374,261 @@ docker stack services e-commerce
 
 ## Tests des Services
 
+## Tests des Services
+
+### Vérification des Logs et Conteneurs
+
+#### Vérifier l'état des conteneurs
+```bash
+# Voir tous les conteneurs
+docker ps -a
+```
+
 ### Tests HTTP (Développement)
 
 #### Auth Service (Port 3001)
-```bash
-# Health check
-curl -X GET http://localhost:3001/api/health
 
-# Inscription utilisateur
+**Health Check:**
+```bash
+curl http://localhost:3001/api/health
+```
+
+**Test Inscription:**
+```bash
 curl -X POST http://localhost:3001/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "password123",
-    "name": "Test User"
-  }'
+  -d '{"email":"test@example.com","password":"password123"}'
+```
 
-# Connexion utilisateur
+**Explication des paramètres curl :**
+- `-X POST` : Utilise la méthode HTTP POST
+- `-H "Content-Type: application/json"` : Indique que tu envoies du JSON
+- `-d '{"email":"test@example.com","password":"password123"}'` : Corps de la requête en JSON
+- `\` : Continuation de ligne pour lisibilité
+
+**Test Connexion:**
+```bash
 curl -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "password123"
-  }'
+  -d '{"email":"test@example.com","password":"password123"}'
+```
 
-# Profil utilisateur (avec token)
-curl -X GET http://localhost:3001/api/auth/profile \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+**Sauvegarder le token pour les tests suivants:**
+```bash
+TOKEN=$(curl -s -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}' \
+  | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+
+echo "Token sauvegardé: $TOKEN"
 ```
 
 #### Product Service (Port 3000)
+
+**Vérifier les logs:**
 ```bash
-# Health check
-curl -X GET http://localhost:3000/api/health
+docker logs ecommerce-products | tail -10
+```
 
-# Liste des produits
-curl -X GET http://localhost:3000/api/products
+**Test Health Check:**
+```bash
+curl http://localhost:3000/api/health
+```
 
-# Détail d'un produit
-curl -X GET http://localhost:3000/api/products/:id
+**Test Liste des Produits (vide au début):**
+```bash
+curl http://localhost:3000/api/products
+```
 
-# Ajouter au panier (avec token)
-curl -X POST http://localhost:3000/api/cart \
+**Créer un produit de test:**
+```bash
+curl -X POST http://localhost:3000/api/products \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Authorization: Bearer efrei_super_pass" \
   -d '{
-    "productId": "product_id_here",
+    "name": "Produit Test",
+    "price": 99.99,
+    "description": "Description test",
+    "stock": 10
+  }'
+```
+
+**Vérifier que le produit est créé:**
+```bash
+curl http://localhost:3000/api/products
+```
+
+#### Tester le Panier
+
+**Récupérer l'ID du produit créé:**
+```bash
+PRODUCT_ID=$(curl -s http://localhost:3000/api/products | grep -o '"_id":"[^"]*' | head -1 | cut -d'"' -f4)
+echo "Product ID: $PRODUCT_ID"
+```
+
+**Ajouter au panier:**
+```bash
+curl -X POST http://localhost:3000/api/cart/add \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer efrei_super_pass" \
+  -d '{
+    "userId": "test-user-id",
+    "productId": "'$PRODUCT_ID'",
     "quantity": 2
   }'
+```
 
-# Voir le panier
-curl -X GET http://localhost:3000/api/cart \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+**Voir le panier:**
+```bash
+curl http://localhost:3000/api/cart \
+  -H "Authorization: Bearer efrei_super_pass" \
+  -H "userId: test-user-id"
 ```
 
 #### Order Service (Port 3002)
-```bash
-# Health check
-curl -X GET http://localhost:3002/api/health
 
-# Créer une commande (avec token)
+**Vérifier les logs:**
+```bash
+docker logs ecommerce-orders | tail -10
+```
+
+**Test Health Check:**
+```bash
+curl http://localhost:3002/api/health
+```
+
+**Créer une commande (utiliser le token Auth et Product ID):**
+```bash
 curl -X POST http://localhost:3002/api/orders \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
-    "items": [
-      {
-        "productId": "product_id_here",
-        "quantity": 1,
-        "price": 29.99
-      }
-    ],
-    "total": 29.99
+    "products": [{
+      "productId": "'$PRODUCT_ID'",
+      "quantity": 1
+    }],
+    "shippingAddress": {
+      "street": "123 Test Street",
+      "city": "Test City",
+      "postalCode": "12345"
+    }
   }'
+```
 
-# Historique des commandes
-curl -X GET http://localhost:3002/api/orders \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+**Voir les commandes:**
+```bash
+curl http://localhost:3002/api/orders \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 #### Frontend (Port 8080)
+
+**Vérifier les logs:**
 ```bash
-# Health check
-curl -X GET http://localhost:8080
+docker logs ecommerce-frontend | tail -10
+```
 
-# Vérification du build
-curl -X GET http://localhost:8080/assets/
+**Test accès frontend:**
+```bash
+curl -I http://localhost:8080
+```
 
-# Test de routage SPA
-curl -X GET http://localhost:8080/login
-curl -X GET http://localhost:8080/products
+**Test accès frontend avec IP directe:**
+```bash
+curl -I http://172.18.0.6:8080/
 ```
 
 ### Tests HTTPS (Production)
 
-#### Configuration SSL active
+#### Configuration SSL active avec IP 192.168.100.40
 
+**Se connecter avec tes identifiants:**
 ```bash
-# Health check sécurisé
-curl -k -X GET https://localhost/api/health
-
-# Auth service via Nginx
-curl -k -X POST https://localhost/api/auth/login \
+TOKEN=$(curl -s -X POST http://192.168.100.40/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "password123"
-  }'
-
-# Product service via Nginx
-curl -k -X GET https://localhost/api/products
-
-# Order service via Nginx
-curl -k -X GET https://localhost/api/orders \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-
-# Frontend sécurisé
-curl -k -X GET https://localhost/
-
-# Vérification du certificat
-openssl s_client -connect localhost:443 -servername localhost
+  -d '{"email":"test@email.com","password":"esgi123456"}' \
+  | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+echo "Token récupéré: ${TOKEN:0:20}..."
 ```
 
-### Tests d'intégration complets
-
+**Voir toutes tes commandes:**
 ```bash
-#!/bin/bash
-# Test complet de l'application
-
-echo "Test d'intégration E-commerce"
-
-# Variables
-BASE_URL="http://localhost"
-if [ "$1" = "--https" ]; then
-  BASE_URL="https://localhost"
-  CURL_OPTS="-k"
-fi
-
-# 1. Vérifier que tous les services sont up
-echo "1. Health checks..."
-curl $CURL_OPTS -f $BASE_URL:3001/api/health || exit 1
-curl $CURL_OPTS -f $BASE_URL:3000/api/health || exit 1  
-curl $CURL_OPTS -f $BASE_URL:3002/api/health || exit 1
-curl $CURL_OPTS -f $BASE_URL:8080/ || exit 1
-
-# 2. Inscription
-echo "2. Inscription utilisateur..."
-REGISTER_RESPONSE=$(curl $CURL_OPTS -s -X POST $BASE_URL:3001/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "integration@test.com",
-    "password": "test123",
-    "name": "Integration Test"
-  }')
-
-echo "Réponse inscription: $REGISTER_RESPONSE"
-
-# 3. Connexion
-echo "3. Connexion utilisateur..."
-LOGIN_RESPONSE=$(curl $CURL_OPTS -s -X POST $BASE_URL:3001/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "integration@test.com", 
-    "password": "test123"
-  }')
-
-TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.token')
-echo "Token récupéré: $TOKEN"
-
-# 4. Liste des produits
-echo "4. Récupération des produits..."
-PRODUCTS_RESPONSE=$(curl $CURL_OPTS -s -X GET $BASE_URL:3000/api/products)
-FIRST_PRODUCT_ID=$(echo $PRODUCTS_RESPONSE | jq -r '.[0]._id')
-echo "Premier produit ID: $FIRST_PRODUCT_ID"
-
-# 5. Ajout au panier
-echo "5. Ajout au panier..."
-CART_RESPONSE=$(curl $CURL_OPTS -s -X POST $BASE_URL:3000/api/cart \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d "{
-    \"productId\": \"$FIRST_PRODUCT_ID\",
-    \"quantity\": 1
-  }")
-
-echo "Réponse panier: $CART_RESPONSE"
-
-# 6. Création commande
-echo "6. Création de commande..."
-ORDER_RESPONSE=$(curl $CURL_OPTS -s -X POST $BASE_URL:3002/api/orders \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "items": [
-      {
-        "productId": "'$FIRST_PRODUCT_ID'",
-        "quantity": 1,
-        "price": 29.99
-      }
-    ],
-    "total": 29.99
-  }')
-
-echo "Réponse commande: $ORDER_RESPONSE"
-
-echo "Test d'intégration terminé avec succès !"
+curl -s http://192.168.100.40/api/orders \
+  -H "Authorization: Bearer $TOKEN" | jq '.'
 ```
+
+**Dans la réponse JSON, l'ID complet de ta commande est :**
+```json
+"_id": "686e72fe49f64b39c85f5e24"
+```
+
+**Gestion des statuts de commande:**
+```bash
+# Utiliser l'ID complet de ta commande
+ORDER_ID="686e72fe49f64b39c85f5e24"  # Remplace par l'ID réel si différent
+
+# Confirmer la commande
+curl -X PATCH http://192.168.100.40/api/orders/${ORDER_ID}/status \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"status": "confirmed"}'
+
+# Marquer comme expédiée
+curl -X PATCH http://192.168.100.40/api/orders/${ORDER_ID}/status \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"status": "shipped"}'
+
+# Marquer comme livrée
+curl -X PATCH http://192.168.100.40/api/orders/${ORDER_ID}/status \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"status": "delivered"}'
+```
+
+**Statuts possibles :**
+- `pending` → En attente
+- `confirmed` → Confirmée
+- `shipped` → Expédiée
+- `delivered` → Livrée
+- `cancelled` → Annulée
+
+#### Tests HTTPS sécurisés
+
+**Health checks via HTTPS:**
+```bash
+curl -k https://192.168.100.40/api/auth/health
+curl -k https://192.168.100.40/api/products/health
+curl -k https://192.168.100.40/api/orders/health
+```
+
+**Test d'inscription via HTTPS:**
+```bash
+curl -k -X POST https://192.168.100.40/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+```
+
+**Test de connexion via HTTPS:**
+```bash
+TOKEN_HTTPS=$(curl -k -s -X POST https://192.168.100.40/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@email.com","password":"esgi123456"}' \
+  | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+echo "Token HTTPS: ${TOKEN_HTTPS:0:20}..."
+```
+
+**Vérification du certificat SSL:**
+```bash
+openssl s_client -connect 192.168.100.40:443 -servername localhost
+```
+
+**Test de redirection HTTP vers HTTPS:**
+```bash
+curl -I http://192.168.100.40  # Devrait rediriger vers HTTPS
+```
+
+
 
 ## Pipeline GitLab CI/CD
 
@@ -764,3 +784,4 @@ openssl x509 -in ssl/server.crt -text -noout
 - **Repository GitLab** : https://gitlab.com/Savita2618/e-commerce-docker-esgi
 - **Projet ESGI** : M1 Systèmes, Réseaux et Cloud Computing
 - **Année** : 2024-2025
+

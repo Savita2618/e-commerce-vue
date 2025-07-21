@@ -1,0 +1,97 @@
+E-commerce Docker ESGI - Rapport de Monitoring
+=============================================
+Date: Mon 21 Jul 23:27:39 CEST 2025
+Environnement: prod
+Généré par: etudiant
+
+RÉSUMÉ EXÉCUTIF
+===============
+Conteneurs: 8/8 opérationnels
+
+ÉTAT DES SERVICES
+=================
+SERVICE            STATE     PORTS
+auth-service       running   0.0.0.0:3001->3001/tcp, [::]:3001->3001/tcp
+frontend           running   80/tcp, 0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+mongodb-auth       running   27017/tcp
+mongodb-orders     running   27017/tcp
+mongodb-products   running   27017/tcp
+nginx-proxy        running   0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp
+order-service      running   0.0.0.0:3002->3002/tcp, [::]:3002->3002/tcp
+product-service    running   0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+
+SANTÉ DES SERVICES
+==================
+Auth Service : OK (HTTP 200)
+Order Service : OK (HTTP 200)
+Product Service : OK (HTTP 200)
+Frontend : OK (HTTP 200)
+
+RESSOURCES SYSTÈME
+==================
+CPU: 50.0
+Mémoire: 46.7%
+Disque: 24%
+Load Average:  1.77, 1.24, 0.87
+
+STATS DOCKER
+============
+CONTAINER ID   NAME                    CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+3f9200ae2290   nginx-proxy-prod        0.00%     3.816MiB / 7.661GiB   0.05%     6.81kB / 126B     147kB / 12.3kB    3
+daf94f7e3006   frontend-prod           0.00%     3.359MiB / 7.661GiB   0.04%     9.18kB / 4.63kB   8.19kB / 8.19kB   3
+1a58a1eab9cb   order-service-prod      0.05%     66.51MiB / 7.661GiB   0.85%     1.04MB / 273kB    20.5kB / 4.1kB    23
+8a871518a068   product-service-prod    0.00%     67.14MiB / 7.661GiB   0.86%     1.06MB / 286kB    4.09MB / 4.1kB    23
+93a504e88ef4   auth-service-prod       0.03%     63.46MiB / 7.661GiB   0.81%     1.04MB / 274kB    635kB / 4.1kB     23
+8ec421e7423c   mongodb-orders-prod     0.70%     214.5MiB / 7.661GiB   2.73%     258kB / 718kB     24.6kB / 23.4MB   33
+580b3a9d73e6   mongodb-auth-prod       0.67%     232MiB / 7.661GiB     2.96%     258kB / 718kB     28.8MB / 23.3MB   33
+a71d4ef01415   mongodb-products-prod   0.68%     208.6MiB / 7.661GiB   2.66%     271kB / 731kB     24.6kB / 23.3MB   34
+
+BASES DE DONNÉES
+================
+mongodb-auth : accessible
+  Stats:
+    {
+    	"ok" : 0,
+    	"errmsg" : "command dbStats requires authentication",
+    	"code" : 13,
+    	"codeName" : "Unauthorized"
+    }
+mongodb-products : accessible
+  Stats:
+    {
+    	"ok" : 0,
+    	"errmsg" : "command dbStats requires authentication",
+    	"code" : 13,
+    	"codeName" : "Unauthorized"
+    }
+mongodb-orders : accessible
+  Stats:
+    {
+    	"ok" : 0,
+    	"errmsg" : "command dbStats requires authentication",
+    	"code" : 13,
+    	"codeName" : "Unauthorized"
+    }
+
+IPS DES SERVICES
+================
+/nginx-proxy-prod: 192.168.100.40
+/frontend-prod: 192.168.100.30
+/order-service-prod: 192.168.100.22
+/product-service-prod: 192.168.100.21
+/auth-service-prod: 192.168.100.20
+/mongodb-orders-prod: 192.168.100.12
+/mongodb-auth-prod: 192.168.100.10
+/mongodb-products-prod: 192.168.100.11
+
+PORTS EXPOSÉS
+=============
+SERVICE            PORTS
+auth-service       0.0.0.0:3001->3001/tcp, [::]:3001->3001/tcp
+frontend           80/tcp, 0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+mongodb-auth       27017/tcp
+mongodb-orders     27017/tcp
+mongodb-products   27017/tcp
+nginx-proxy        0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp
+order-service      0.0.0.0:3002->3002/tcp, [::]:3002->3002/tcp
+product-service    0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
