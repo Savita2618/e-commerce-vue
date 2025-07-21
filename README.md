@@ -1,777 +1,756 @@
-# Documentation du Projet E-Commerce Microservices
+# E-commerce Vue.js - Projet Docker ESGI
 
-## Table des Matières
+## Description
 
-1. [Introduction](#introduction)
-2. [Architecture du Projet](#architecture-du-projet)
-   - [Vue d'Ensemble](#vue-densemble)
-   - [Microservices](#microservices)
-3. [Structure des Répertoires](#structure-des-répertoires)
-4. [Environnement et Dépendances](#environnement-et-dépendances)
-   - [Environnement d'Exécution](#environnement-dexecution)
-   - [Logiciels Nécessaires](#logiciels-nécessaires)
-   - [Dépendances](#dépendances)
-   - [Détails des Composants](#détails-des-composants)
-   - [Automatisation avec GitLab CI/CD](#automatisation-avec-gitlab-ci-cd)
-5. [Configuration et Déploiement](#configuration-et-déploiement)
-   - [Déploiement Manuel avec PM2 pour la Pré-production](#déploiement-manuel-avec-pm2-pour-la-pré-production)
-   - [Déploiement avec Docker et Docker Compose](#déploiement-avec-docker-et-docker-compose)
-     - [Environnement de Développement](#environnement-de-développement)
-     - [Environnement de Production avec Docker Swarm](#environnement-de-production-avec-docker-swarm)
-   - [Scripts d'Automatisation](#scripts-dautomatisation)
-6. [Fonctionnalités Principales](#fonctionnalités-principales)
-   - [Authentification JWT](#authentification-jwt)
-   - [Gestion des Produits et du Panier](#gestion-des-produits-et-du-panier)
-   - [Gestion des Commandes](#gestion-des-commandes)
-7. [Flux de Données](#flux-de-données)
-8. [Tests et Qualité du Code](#tests-et-qualité-du-code)
-   - [Tests de Sécurité](#tests-de-sécurité)
-   - [Tests Frontend](#tests-frontend)
-   - [Tests Backend](#tests-backend)
-9. [Bonnes Pratiques et Considérations](#bonnes-pratiques-et-considérations)
-10. [Annexes](#annexes)
-    - [Exemples de Commandes CURL](#exemples-de-commandes-curl)
-    - [Comment Exécuter le Projet](#comment-exécuter-le-projet)
-
----
-
-# Documentation du Projet E-Commerce Microservices
-
----
-
-## Introduction
-
-Documentation détaillée du **Projet E-Commerce Microservices**. Ce projet est une application e-commerce complète basée sur une architecture microservices, conçue pour offrir modularité, scalabilité et maintenabilité. Cette documentation couvre la structure du projet, les composants individuels, les configurations nécessaires, les méthodes de déploiement, ainsi que les pratiques de développement et de test mises en œuvre.
-
----
+Application e-commerce complète développée avec une architecture microservices containerisée avec Docker. Le projet utilise Vue.js pour le frontend et Node.js/Express pour les services backend, avec MongoDB comme base de données pour chaque microservice.
 
 ## Architecture du Projet
 
-### Vue d'Ensemble
+### Services
+- **Frontend Vue.js** (Port 8080) - Interface utilisateur
+- **Auth Service** (Port 3001) - Service d'authentification JWT  
+- **Product Service** (Port 3000) - Gestion des produits et panier
+- **Order Service** (Port 3002) - Gestion des commandes
+- **MongoDB** - Base de données pour chaque service
+- **Nginx** - Reverse proxy (production uniquement)
 
-Le projet est structuré autour d'une architecture microservices, permettant de séparer les différentes fonctionnalités en services indépendants. Cette approche facilite la maintenance, la scalabilité et l'évolution de l'application.
+### Communication
+- Frontend ↔ Services backend via API REST
+- Authentification JWT entre les services
+- Communication interne Docker via réseau bridge
 
-**Composants Principaux :**
-
-- **Frontend** : Application utilisateur développée avec Vue.js.
-- **Backend** : Trois microservices principaux :
-  - **Auth Service** : Gestion de l'authentification et des utilisateurs.
-  - **Product Service** : Gestion des produits et du panier.
-  - **Order Service** : Gestion des commandes.
-- **Base de Données** : Chaque microservice dispose de sa propre base de données MongoDB.
-- **Conteneurisation** : Utilisation de Docker et Docker Compose pour la conteneurisation et l'orchestration, avec Docker Swarm pour la production.
-- **Intégration Continue** : Utilisation de GitLab CI/CD avec des runners Docker internes à l'entreprise.
-
-- Les machines du projets utilisées sont toutes des **debian 12**, veuillez prendre en compte cette information que ce soit ou un déploiement local ou pour votre future pipeline :)
-### Microservices
-
-1. **Auth Service** : Gère l'inscription, la connexion, la gestion des profils utilisateurs et l'authentification via JWT.
-2. **Product Service** : Gère l'affichage des produits, les opérations sur le panier (ajout, modification, suppression).
-3. **Order Service** : Gère la création et la consultation des commandes des utilisateurs.
-
----
-
-## Structure des Répertoires
-
-Voici la structure complète du projet, excluant les dossiers ignorés (`node_modules`, `dist`, `.git`, `coverage`):
+## Structure des Dossiers
 
 ```
-.
-├── docker-compose.prod.yml
-├── docker-compose.yml
-├── frontend
-│   ├── build-front.yml
-│   ├── Dockerfile
-│   ├── Dockerfile.dev
-│   ├── index.html
+e-commerce-vue/
+├── frontend/                          # Application Vue.js
+│   ├── src/                          # Code source frontend
+│   ├── public/                       # Assets statiques
+│   ├── Dockerfile                    # Multi-stage (build/dev/prod)
+│   ├── nginx.conf                    # Configuration Nginx
 │   ├── package.json
-│   ├── package-lock.json
-│   ├── public
-│   ├── README.md
-│   ├── server.cjs
-│   ├── src
-│   │   ├── App.vue
-│   │   ├── assets
-│   │   ├── components
-│   │   ├── main.js
-│   │   ├── router
-│   │   ├── services
-│   │   └── style.css
-│   ├── test-results
-│   ├── tests
-│   ├── vite.config.js
-│   └── vitest.config.js
-├── package.json
-├── package-lock.json
-├── README.md
-├── scripts
-│   ├── deploy.sh
-│   ├── init-products.sh
-│   ├── run-tests.sh
-│   ├── setup.sh
-│   └── tests.notes
-└── services
-    ├── auth-service
-    │   ├── build-auth.yml
-    │   ├── Dockerfile
-    │   ├── jest.config.js
-    │   ├── package.json
-    │   ├── package-lock.json
-    │   ├── src
-    │   └── tests
-    ├── order-service
-    │   ├── build-order.yml
-    │   ├── Dockerfile
-    │   ├── jest.config.js
-    │   ├── package.json
-    │   ├── package-lock.json
-    │   ├── src
-    │   └── tests
-    └── product-service
-        ├── build-product.yml
-        ├── Dockerfile
-        ├── jest.config.js
-        ├── package.json
-        ├── package-lock.json
-        ├── src
-        └── tests
+│   └── vite.config.js
+├── services/                         # Microservices backend
+│   ├── auth-service/                 # Service authentification
+│   │   ├── src/
+│   │   │   ├── app.js               # Point d'entrée
+│   │   │   ├── controllers/         # Logique métier
+│   │   │   ├── models/              # Modèles MongoDB
+│   │   │   ├── routes/              # Routes API
+│   │   │   └── middleware/          # Middleware JWT
+│   │   ├── tests/                   # Tests unitaires
+│   │   ├── Dockerfile               # Multi-stage
+│   │   └── package.json
+│   ├── product-service/              # Service produits
+│   │   ├── src/
+│   │   │   ├── app.js
+│   │   │   ├── controllers/         # Product + Cart controllers
+│   │   │   ├── models/              # Product + Cart models
+│   │   │   └── routes/              # Product + Cart routes
+│   │   ├── tests/
+│   │   ├── Dockerfile
+│   │   └── package.json
+│   └── order-service/                # Service commandes
+│       ├── src/
+│       │   ├── app.js
+│       │   ├── controllers/         # Order controller
+│       │   ├── models/              # Order model
+│       │   └── routes/              # Order routes
+│       ├── tests/
+│       ├── Dockerfile
+│       └── package.json
+├── nginx/                            # Configuration Nginx
+│   ├── nginx.conf                   # Config production avec SSL
+│   └── backup/                      # Configs alternatives
+├── ssl/                             # Certificats SSL (production)
+├── scripts/                         # Scripts d'automatisation
+│   ├── setup.sh                     # Installation environnement
+│   ├── run-tests.sh                 # Exécution des tests
+│   ├── deploy.sh                    # Déploiement
+│   ├── monitoring.sh                # Surveillance des services
+│   └── init-products.sh             # Initialisation des données
+├── monitoring/                       # Configuration monitoring
+├── backup/                          # Sauvegardes
+├── docker-compose.yml               # Configuration développement
+├── docker-compose.prod.yml          # Configuration production (GITHUB)
+├── docker-compose.prod.gitlab.yml   # Configuration production (GITLAB)
+├── .env.example                     # Variables d'environnement
+├── .gitlab-ci.yml                   # Pipeline GitLab CI/CD
+├── .dockerignore
+├── .gitignore
+└── README.md
 ```
 
----
+## Prérequis Système
 
-## Environnement et Dépendances
+### Debian 12 (Compatible)
 
-### Environnement d'Exécution
+#### Installation Docker Compose v2
+```bash
+# Mise à jour du système
+sudo apt update && sudo apt upgrade -y
 
-L'application peut être déployée de trois manières principales :
+# Installation des dépendances
+sudo apt install -y apt-transport-https ca-certificates curl gnupg lsb-release
 
-1. **Déploiement Manuel avec PM2 pour la Pré-production** : Exécution directe des services sur votre machine locale en utilisant PM2 pour gérer les processus, idéal pour la pré-production ou les environnements de test.
+# Ajout de la clé GPG Docker
+curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
 
-2. **Déploiement avec Docker et Docker Compose** : Utilisation de Docker pour conteneuriser les services et Docker Compose pour orchestrer les conteneurs en environnement de développement.
+# Ajout du repository Docker
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-3. **Déploiement en Production avec Docker Swarm** : Utilisation de Docker Swarm pour orchestrer les conteneurs en environnement de production, avec le fichier `docker-compose.prod.yml`.
+# Installation Docker Engine et Compose v2
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-### Logiciels Nécessaires
+# Vérification des versions
+docker --version
+docker compose version
 
-#### Pour le Déploiement Manuel
+# Ajout de l'utilisateur au groupe docker
+sudo usermod -aG docker $USER
+newgrp docker
+```
 
-- **Node.js** : Version 14.x ou supérieure.
-- **npm** : Version 6.x ou supérieure (généralement inclus avec Node.js).
-- **Git** : Pour cloner le dépôt du projet.
-- **MongoDB** : Version 4.4 installée et en cours d'exécution localement.
-- **PM2** : Pour gérer les processus Node.js en production ou pré-production.
+#### Installation Node.js (LTS)
+```bash
+# Installation via NodeSource (recommandé)
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt install -y nodejs
 
-#### Pour le Déploiement avec Docker
+# Ou via Snap (alternative)
+sudo snap install node --classic
 
-- **Docker** : Version 20.x ou supérieure.
-- **Docker Compose** : Version 1.27 ou supérieure.
-- **Docker Swarm** : Inclus avec Docker (activation via `docker swarm init`).
+# Vérification
+node --version
+npm --version
+```
 
-#### Automatisation avec GitLab CI/CD
+#### Outils additionnels
+```bash
+# Outils de développement
+sudo apt install -y git curl wget vim nano htop tree jq
 
-- **GitLab Runner** : Configuré pour exécuter les pipelines CI/CD avec des runners Docker (Docker-in-Docker - dind) internes à l'entreprise.
+# PM2 pour déploiement manuel (optionnel)
+sudo npm install -g pm2
+```
 
-#### Outils de Développement (Facultatif)
+## Configuration des Environnements
 
-- **Visual Studio Code** ou tout autre éditeur de code.
-- **Postman** : Pour tester les API backend.
-- **MongoDB Compass** : Pour gérer visuellement les bases de données MongoDB.
+### Branche `develop` (Développement)
 
-### Dépendances
+#### Variables d'environnement (.env)
+```bash
+# Copier le template
+cp .env.example .env
 
-Chaque composant (frontend et services backend) possède ses propres dépendances gérées via `package.json`. Voici un aperçu des dépendances principales :
+# Variables principales
+NODE_ENV=development
+COMPOSE_PROJECT_NAME=ecommerce-dev
+IMAGE_TAG=develop
 
-#### Frontend
+# Base de données
+MONGO_ROOT_USERNAME=admin
+MONGO_ROOT_PASSWORD=password
 
-- **Vue.js** : Framework JavaScript pour construire l'interface utilisateur.
-- **Vue Router** : Gestion des routes côté client.
-- **Axios** : Pour les requêtes HTTP vers les APIs backend.
-- **Vite** : Outil de bundling et de développement rapide.
-- **Vitest** : Framework de test pour Vue.js.
+# Sécurité
+JWT_SECRET=your_jwt_secret_key_here
 
-#### Services Backend
+# URLs des services (développement)
+VITE_AUTH_SERVICE_URL=http://localhost:3001
+VITE_PRODUCT_SERVICE_URL=http://localhost:3000
+VITE_ORDER_SERVICE_URL=http://localhost:3002
+```
 
-- **Express.js** : Framework web pour Node.js.
-- **Mongoose** : ODM pour interagir avec MongoDB.
-- **jsonwebtoken** : Pour la génération et la vérification des tokens JWT.
-- **bcrypt** : Pour le hachage des mots de passe.
-- **Cors** : Middleware pour gérer les en-têtes CORS.
-- **dotenv** : Pour gérer les variables d'environnement.
-- **Jest** : Framework de test pour Node.js.
+#### Lancement du développement
+```bash
+# Installation des dépendances
+./scripts/setup.sh
 
-### Détails des Composants
+# Démarrage des services
+docker compose up -d
 
-#### Frontend
+# Vérification des conteneurs
+docker compose ps
 
-Le frontend est une application Vue.js qui sert d'interface utilisateur pour l'application e-commerce.
+# Suivi des logs
+docker compose logs -f
 
-- **Technologies** : Vue.js, Vue Router, Axios, Vite.
-- **Structure** :
-  - **`index.html`** : Point d'entrée HTML de l'application.
-  - **`src/`** : Contient le code source de l'application.
-    - **`main.js`** : Point d'entrée JavaScript, configure l'application Vue et le routeur.
-    - **`App.vue`** : Composant racine de l'application.
-    - **`components/`** : Contient les composants Vue réutilisables.
-      - **`AuthTest.vue`** : Composant pour l'inscription, la connexion et l'affichage du profil utilisateur.
-      - **`OrderHistory.vue`** : Composant pour afficher l'historique des commandes.
-      - **`ProductList.vue`** : Composant pour afficher la liste des produits disponibles.
-      - **`ShoppingCart.vue`** : Composant pour gérer le panier d'achat de l'utilisateur.
-    - **`services/`** : Contient les services pour communiquer avec les APIs backend via Axios.
-      - **`authService.js`**, **`cartService.js`**, **`orderService.js`**, **`productService.js`**.
-    - **`router/`** : Configure les routes de l'application avec Vue Router.
-    - **`assets/`** : Contient les fichiers statiques tels que les images et les styles CSS.
-  - **`server.cjs`** : Serveur Express qui sert les fichiers statiques et configure les proxies vers les microservices backend (pour la production)
-  - **`tests/`** : Contient les tests unitaires du frontend.
-  - **`vite.config.js`** et **`vitest.config.js`** : Configurations pour Vite et Vitest (pour le developement)
+# Arrêt des services
+docker compose down
+```
 
-**Fonctionnalités Clés :**
+### Branche `main` (Production)
 
-- **Authentification** : Inscription, connexion, gestion du profil via JWT.
-- **Gestion des Produits** : Affichage de la liste des produits, détails des produits.
-- **Gestion du Panier** : Ajout, modification, suppression d'articles dans le panier.
-- **Gestion des Commandes** : Passation de commandes, affichage de l'historique des commandes.
+#### Configuration SSL
 
-#### Services Backend
+##### Utilisation du script automatisé (Recommandé)
+```bash
+# Génération automatique des certificats SSL
+./scripts/setup-ssl.sh
 
-Chaque microservice backend est développé en Node.js avec Express et possède sa propre base de données MongoDB.
+# Le script génère automatiquement :
+# - nginx/ssl/server.crt (certificat)
+# - nginx/ssl/server.key (clé privée)
+# - Configuration nginx avec SSL activé
+```
 
-##### Auth Service
+##### Configuration manuelle des certificats (alternative)
+```bash
+# Création du dossier SSL
+mkdir -p ssl
 
-- **Fonctionnalités** :
-  - Inscription, connexion, gestion du profil utilisateur.
-  - Génération et vérification des tokens JWT.
-- **Structure** :
-  - **`src/app.js`** : Point d'entrée du service.
-  - **`src/controllers/authController.js`** : Contient les fonctions pour l'inscription, la connexion et la récupération du profil.
-  - **`src/models/user.js`** : Modèle Mongoose pour les utilisateurs.
-  - **`src/routes/authRoutes.js`** : Définit les routes pour l'authentification.
-  - **`src/middleware/auth.js`** : Middleware pour vérifier le token JWT.
-  - **Tests** : Situés dans **`tests/`**.
+# Génération du certificat auto-signé
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout ssl/server.key \
+  -out ssl/server.crt \
+  -subj "/C=FR/ST=IDF/L=Paris/O=ESGI/OU=IT/CN=localhost"
 
-##### Product Service
+# Permissions appropriées
+sudo chmod 600 ssl/server.key
+sudo chmod 644 ssl/server.crt
+```
 
-- **Fonctionnalités** :
-  - Gestion des produits : liste, détails.
-  - Gestion du panier : ajout, suppression, mise à jour.
-- **Structure** :
-  - **`src/app.js`** : Point d'entrée du service.
-  - **`src/controllers/productController.js`** : Gère les opérations liées aux produits.
-  - **`src/models/product.js`** : Modèle Mongoose pour les produits.
-  - **`src/routes/productRoutes.js`** : Définit les routes pour les produits.
-  - **`src/controllers/cartController.js`** : Gère les opérations sur le panier.
-  - **`src/models/cart.js`** : Modèle Mongoose pour le panier.
-  - **`src/routes/cartRoutes.js`** : Définit les routes pour le panier.
-  - **Tests** : Situés dans **`tests/`**.
+##### Certificats Let's Encrypt (production réelle)
+```bash
+# Installation Certbot
+sudo apt install -y certbot python3-certbot-nginx
 
-##### Order Service
+# Génération du certificat (remplacer votre-domaine.com)
+sudo certbot --nginx -d votre-domaine.com
 
-- **Fonctionnalités** :
-  - Création et consultation des commandes.
-- **Structure** :
-  - **`src/app.js`** : Point d'entrée du service.
-  - **`src/controllers/orderController.js`** : Gère la création et la récupération des commandes.
-  - **`src/models/order.js`** : Modèle Mongoose pour les commandes.
-  - **`src/routes/orderRoutes.js`** : Définit les routes pour les commandes.
-  - **Tests** : Situés dans **`tests/`**.
+# Renouvellement automatique
+sudo crontab -e
+# Ajouter : 0 12 * * * /usr/bin/certbot renew --quiet
+```
 
-### Automatisation avec GitLab CI/CD
+#### Variables d'environnement production (.env.prod)
+```bash
+NODE_ENV=production
+COMPOSE_PROJECT_NAME=ecommerce-prod
+IMAGE_TAG=latest
 
-Le projet utilise GitLab CI/CD pour automatiser les processus de build, test et déploiement. Chaque microservice et le frontend possèdent leur propre fichier de configuration de pipeline situé à la racine de leur répertoire respectif, nommé `build-*.yml` (par exemple, `build-front.yml` pour le frontend).
+# Base de données sécurisée
+MONGO_ROOT_USERNAME=admin
+MONGO_ROOT_PASSWORD=strong_production_password
 
-- **Runners Docker Internes** : Les pipelines s'exécutent sur des runners Docker-in-Docker (dind) internes à l'entreprise, ce qui permet de construire des images Docker pendant les jobs CI/CD.
-- **Variables CI/CD** : Les variables d'environnement nécessaires (comme `CI_REGISTRY_IMAGE`, `IMAGE_FULL`, `IMAGE_TAG`, `JWT_SECRET`) sont définies dans les variables GitLab CI/CD.
+# JWT sécurisé
+JWT_SECRET=very_strong_jwt_secret_key_production
 
----
+# URLs des services (production)
+VITE_AUTH_SERVICE_URL=/api/auth
+VITE_PRODUCT_SERVICE_URL=/api/products
+VITE_ORDER_SERVICE_URL=/api/orders
 
-## Configuration et Déploiement
+# SSL
+SSL_CERT_PATH=/app/ssl/server.crt
+SSL_KEY_PATH=/app/ssl/server.key
+```
 
-### Déploiement Manuel avec PM2 pour la Pré-production
+#### Déploiement avec GitLab CI/CD
 
-Le déploiement manuel consiste à exécuter directement les services sur votre machine locale en utilisant PM2 pour gérer les processus. Le script `deploy.sh` est utilisé pour automatiser ce processus et est idéal pour les environnements de pré-production ou de test.
-
-#### Utilisation de `deploy.sh`
-
-- **Chemin** : `scripts/deploy.sh`
-- **Fonctionnalités** :
-  - Installe les dépendances pour le frontend et les services backend.
-  - Construit le frontend avec `npm run build` (comme en production).
-  - Démarre les services backend et le frontend en utilisant PM2.
-
-**Étapes :**
-
-1. **Installer PM2** :
-
-   ```bash
-   npm install -g pm2
-   ```
-
-2. **Rendre le script exécutable** :
+Le projet inclut un fichier spécifique pour GitLab CI/CD :
 
 ```bash
-   chmod +x scripts/deploy.sh
-   mkdir /opt/e-commerce
-   cp -r e-commerce-vue/* /opt/e-commerce
-   cd /opt/e-commerce
+# Configuration automatique via GitLab CI/CD
+# Le pipeline utilise docker-compose.prod.gitlab.yml
+
+# Variables GitLab CI/CD requises :
+# - CI_REGISTRY_IMAGE : URL du registry GitLab
+# - IMAGE_TAG : Tag des images (automatique)
+# - JWT_SECRET : Secret JWT pour production
+# - MONGO_ROOT_USERNAME : Utilisateur MongoDB
+# - MONGO_ROOT_PASSWORD : Mot de passe MongoDB
+
+# Le déploiement automatique utilise :
+docker-compose -f docker-compose.prod.gitlab.yml up -d
+
+# Avec les variables d'environnement GitLab injectées automatiquement
 ```
 
-3. **Exécuter le script** :
+#### Déploiement production avec Docker Compose
 
 ```bash
-   ./scripts/deploy.sh
-   ./scripts/init-products.sh
+# Méthode 1 : Script automatisé (Recommandé)
+./scripts/deploy.sh
+
+# Le script deploy.sh gère automatiquement :
+# - Configuration des variables d'environnement
+# - Démarrage des services en production
+# - Tests de santé des services
+# - Affichage des logs et statuts
+
+# Démarrage en production
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+
+# Vérification
+docker compose -f docker-compose.prod.yml ps
+
+# Monitoring
+./scripts/monitoring.sh --env=prod
 ```
 
-**Remarques :**
 
-- Assurez-vous que MongoDB est installé et en cours d'exécution sur votre machine.
-- Configurez les variables d'environnement nécessaires dans des fichiers `.env` situés dans chaque répertoire de service.
-- PM2 offre des fonctionnalités de surveillance, de gestion des logs et de redémarrage automatique.
-- Exemple avec SSH : 
+## Utilisation des Scripts
+
+
+### deploy.sh - Déploiement automatisé
 ```bash
-sync -avz --delete --exclude '.git' -e "ssh -o StrictHostKeyChecking=no" ./ root@192.168.1.108:/opt/e-commerce
+# Déploiement production avec script
+./scripts/deploy.sh
+
+# Le script gère automatiquement :
+# - Configuration des variables d'environnement
+# - Démarrage des services selon l'environnement
+# - Vérification de la santé des services
+# - Tests d'intégration automatiques
+# - Affichage des informations de connexion
+
+# Redémarrage des services
+./scripts/deploy.sh --restart
+
+# Utilisation avec registre spécifique
+./scripts/deploy.sh github    # Utilise le registre GitHub
+./scripts/deploy.sh gitlab   # Utilise le registre GitLab
 ```
 
-### Déploiement avec Docker et Docker Compose
-
-Le projet utilise Docker pour conteneuriser les services et le frontend, et Docker Compose pour orchestrer les conteneurs. Le fichier `docker-compose.yml` est configuré pour déployer la stack en mode développement. En modifiant la cible (`target`) dans les Dockerfiles ou les variables d'environnement, il est possible de déployer en mode production.
-
-#### Environnement de Développement
-
-1. **Prérequis** :
-
-   - **Docker** et **Docker Compose** installés sur votre machine.
-   - **Git** pour cloner le dépôt du projet.
-
-2. **Cloner le Dépôt** :
-
-   ```bash
-   git clone <URL_DU_DÉPÔT>
-   cd <NOM_DU_PROJET>
-   ```
-
-3. **Construire et Démarrer les Conteneurs** :
-
-   ```bash
-   docker-compose up --build
-   ```
-
-4. **Initialisation des Données** :
-
-   ```bash
-   ./scripts/init-products.sh
-   ```
-
-5. **Accès à l'Application** :
-
-   - Ouvrez votre navigateur et accédez à `http://localhost:8080`.
-
-#### Environnement de Production avec Docker Swarm
-
-Pour le déploiement en production, le fichier `docker-compose.prod.yml` est utilisé avec Docker Swarm.
-
-1. **Prérequis** :
-
-   - **Docker** installé sur le serveur de production.
-   - Accès SSH au serveur.
-
-2. **Initialiser Docker Swarm** :
-
-   ```bash
-   docker swarm init
-   ```
-
-3. **Déployer la Stack en Production** :
-
-   ```bash
-   docker stack deploy -c docker-compose.prod.yml e-commerce
-   ```
-
-4. **Vérifier le Déploiement** :
-
-   ```bash
-   docker stack services e-commerce
-   ```
-
-5. **Accès à l'Application** :
-
-   - Accédez à l'adresse IP ou au domaine de votre serveur suivi du port approprié (par exemple, `http://192.168.1.108:8080`).
-
-**Remarques :**
-
-- Le fichier `docker-compose.prod.yml` est configuré pour utiliser les images Docker pré-construites.
-- Les variables comme `IMAGE_TAG` et `CI_REGISTRY_IMAGE` sont gérées par GitLab CI/CD.
-- Adapter le script init-products.sh si nécessaire pour ajouter les produits.
-
----
-
-## Scripts d'Automatisation
-
-Le répertoire **`scripts/`** contient plusieurs scripts pour faciliter le déploiement et la gestion du projet :
-
-- **`deploy.sh`** : Automatise le déploiement manuel de l'application avec PM2 pour la pré-production.
-- **`init-products.sh`** : Initialise la base de données des produits avec des données par défaut.
-- **`run-tests.sh`** : Exécute l'ensemble des tests pour les services backend et le frontend.
-- **`setup.sh`** : Prépare l'environnement de développement en installant les dépendances nécessaires.
-- **`tests.notes`** : Contient des notes ou des instructions supplémentaires liées aux tests.
-
-**Exemples d'utilisation :**
-- **Mise en place initiale sur le serveur de dev** :
-
-  ```bash
-  ./scripts/setup.sh
-  ```
-
-- **Exécuter les Tests** :
-
-  ```bash
-  ./scripts/run-tests.sh
-  ```
-
-- **Initialiser les Données des Produits** :
-
-  ```bash
-  ./scripts/init-products.sh
-  ```
-
----
-
-## Fonctionnalités Principales
-
-### Authentification JWT
-
-- **Inscription et Connexion** : Les utilisateurs peuvent s'inscrire avec un email et un mot de passe, puis se connecter pour obtenir un token JWT.
-- **Protection des Routes** : Les routes sensibles sont protégées par un middleware qui vérifie le token JWT.
-- **Gestion du Profil** : Les utilisateurs peuvent consulter leur profil.
-
-### Gestion des Produits et du Panier
-
-- **Liste des Produits** : Affichage de tous les produits disponibles.
-- **Détails du Produit** : Affichage des informations détaillées sur un produit.
-- **Panier** :
-  - **Ajout au Panier** : Les utilisateurs peuvent ajouter des produits à leur panier.
-  - **Modification du Panier** : Mise à jour ou suppression d'articles du panier.
-  - **Consultation du Panier** : Affichage des articles dans le panier.
-
-### Gestion des Commandes
-
-- **Passation de Commande** : Les utilisateurs peuvent passer une commande basée sur le contenu de leur panier.
-- **Historique des Commandes** : Consultation des commandes précédentes.
-
----
-
-## Flux de Données
-
-1. **Authentification** :
-   - **Inscription** :
-     - Frontend → `/api/auth/register` → Auth Service → Base de Données → Frontend.
-   - **Connexion** :
-     - Frontend → `/api/auth/login` → Auth Service → Base de Données → Frontend.
-   - **Profil** :
-     - Frontend (avec JWT) → `/api/auth/profile` → Auth Service → Base de Données → Frontend.
-
-2. **Gestion des Produits et du Panier** :
-   - **Liste des Produits** :
-     - Frontend → `/api/products` → Product Service → Base de Données → Frontend.
-   - **Gestion du Panier** :
-     - Frontend → `/api/cart/*` → Product Service → Base de Données → Frontend.
-
-3. **Gestion des Commandes** :
-   - **Passation de Commande** :
-     - Frontend → `/api/orders/create` → Order Service → Base de Données → Frontend.
-   - **Historique des Commandes** :
-     - Frontend → `/api/orders/user/:userId` → Order Service → Base de Données → Frontend.
-
----
-
-## Tests et Qualité du Code
-
-### Tests de Sécurité
-
-- **SonarCloud** : Peut être implémenté pour une analyse continue de la qualité et de la sécurité du code.
-- **Trivy** : Outil de scan de vulnérabilités pour le code et les conteneurs.
-
-### Tests Frontend
-
-- **Framework** : Vitest
-- **Localisation** : `frontend/tests/`
-- **Types de Tests** :
-  - **Unitaires** : Tests des composants Vue.js et des services Axios.
-
-**Exécution des Tests :**
-
+### setup-ssl.sh - Configuration SSL
 ```bash
-cd frontend
-npm run test
-npm run test:unit
-npm run test:coverage
-npm run lint:report || true
+# Configuration SSL automatique
+./scripts/setup-ssl.sh
+
+# Le script :
+# - Génère les certificats auto-signés
+# - Configure nginx avec SSL
+# - Valide la configuration
+# - Teste les connexions HTTPS
+# - Sauvegarde la config précédente
 ```
 
-### Tests Backend
-
-- **Framework** : Jest
-- **Localisation** : `services/<service-name>/tests/`
-- **Types de Tests** :
-  - **Unitaires** : Tests des contrôleurs, des modèles et des routes.
-
-**Exécution des Tests :**
-
+### monitoring.sh - Surveillance des services
 ```bash
-cd services/<service-name>
-npm test
-npm run lint || true # Si disponible
-```
+# Monitoring développement
+./scripts/monitoring.sh --env=dev
 
----
+# Monitoring production
+./scripts/monitoring.sh --env=prod
 
-## Bonnes Pratiques et Considérations
-
-- **Modularité** : Chaque service est indépendant, ce qui facilite la maintenance et la scalabilité.
-- **Sécurité** :
-  - Utilisation de tokens JWT pour sécuriser les communications.
-  - Protection des routes sensibles avec des middlewares d'authentification.
-  - Stockage sécurisé des mots de passe (hachage avec bcrypt).
-  - Gestion des secrets avec des variables d'environnement sécurisées.
-- **Gestion des Erreurs** : Implémentation de messages d'erreur clairs pour faciliter le débogage.
-- **Logs** :
-  - Les services backend utilisent des middlewares de logging pour enregistrer les requêtes reçues.
-- **Configuration du Proxy** :
-  - Le fichier `server.cjs` est configuré pour rediriger correctement les requêtes du frontend vers les services backend.
-- **Conteneurisation et Orchestration** :
-  - Utilisation de Docker pour isoler les environnements de développement et de production.
-  - Docker Swarm pour l'orchestration en production, offrant une haute disponibilité et un load balancing.
-- **Tests Automatisés** : Maintien d'une couverture de tests élevée pour assurer la qualité et la fiabilité du code.
-- **CI/CD avec GitLab** :
-  - Intégration de pipelines CI/CD pour automatiser les tests, la construction des images Docker et le déploiement.
-  - Utilisation de runners Docker-in-Docker internes à l'entreprise.
-- **Utilisation de PM2 pour la Pré-production** :
-  - PM2 est utilisé pour gérer les processus Node.js dans les environnements de pré-production ou de test.
-- **Gestion des Variables d'Environnement** :
-  - Les variables sensibles, comme `JWT_SECRET`, sont gérées via des variables d'environnement et doivent être correctement configurées.
-
----
-
-## Annexes
-
-### Exemples de Commandes CURL
-
-Pour faciliter les tests des différentes APIs de votre application, voici une série d'exemples de commandes `curl` que vous pouvez utiliser.
-
-#### Auth Service
-
-- **Inscription d'un Nouvel Utilisateur**
-
-  ```bash
-  curl -X POST http://localhost:3001/api/auth/register \
-       -H "Content-Type: application/json" \
-       -d '{"email": "user@example.com", "password": "password123"}'
-  ```
-
-```json
-{"message":"Utilisateur créé avec succès","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzNiNmIyYzAyNTJmZDViZmU5OTdkYWMiLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJpYXQiOjE3MzE5NDczMDgsImV4cCI6MTczMjAzMzcwOH0.Zcbj4jVTY0Ma3z-pCKl_bGiXbqT8aSFghE2MQBkCmXo","userId":"673b6b2c0252fd5bfe997dac"}
+# Monitoring spécifique
+./scripts/monitoring.sh --service=auth
+./scripts/monitoring.sh --logs
+./scripts/monitoring.sh --metrics
 ```
 
 
-- **Connexion d'un Utilisateur**
+## Tests des Services
 
-  ```bash
-  curl -X POST http://localhost:3001/api/auth/login \
-       -H "Content-Type: application/json" \
-       -d '{"email": "user@example.com", "password": "password123"}'
-  ```
+## Tests des Services
 
-```json
-{"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzNiNmIyYzAyNTJmZDViZmU5OTdkYWMiLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJpYXQiOjE3MzE5NDczNDYsImV4cCI6MTczMjAzMzc0Nn0.RcwtvVyp6gw15Zs8addBS25FzuqpqZmxp7OqwglFBG4","userId":"673b6b2c0252fd5bfe997dac","email":"user@example.com"}
+### Vérification des Logs et Conteneurs
+
+#### Vérifier l'état des conteneurs
+```bash
+# Voir tous les conteneurs
+docker ps -a
 ```
 
+### Tests HTTP (Développement)
 
-- **Récupération du Profil Utilisateur**
+#### Auth Service (Port 3001)
 
-  ```bash
-  curl -X GET http://localhost:3001/api/auth/profile \
-       -H "Authorization: Bearer <JWT_TOKEN>"
-  ```
-
-```json
-{"_id":"673b6b2c0252fd5bfe997dac","email":"user@example.com","createdAt":"2024-11-18T16:28:28.239Z","__v":0}
+**Health Check:**
+```bash
+curl http://localhost:3001/api/health
 ```
 
-#### Product Service
-
-- **Récupération de la Liste des Produits**
-
-  ```bash
-  curl -X GET http://localhost:3000/api/products
-  ```
-
-```json
-[{"_id":"673b6ba048c194f02ade2aac","name":"Smartphone Galaxy S21","price":899,"description":"Dernier smartphone Samsung avec appareil photo 108MP","stock":15,"createdAt":"2024-11-18T16:30:24.472Z","__v":0},{"_id":"673b6ba048c194f02ade2aae","name":"MacBook Pro M1","price":1299,"description":"Ordinateur portable Apple avec puce M1","stock":10,"createdAt":"2024-11-18T16:30:24.489Z","__v":0},{"_id":"673b6ba048c194f02ade2ab0","name":"PS5","price":499,"description":"Console de jeu dernière génération","stock":5,"createdAt":"2024-11-18T16:30:24.498Z","__v":0},{"_id":"673b6ba048c194f02ade2ab2","name":"Écouteurs AirPods Pro","price":249,"description":"Écouteurs sans fil avec réduction de bruit","stock":20,"createdAt":"2024-11-18T16:30:24.506Z","__v":0},{"_id":"673b6ba048c194f02ade2ab4","name":"Nintendo Switch","price":299,"description":"Console de jeu portable","stock":12,"createdAt":"2024-11-18T16:30:24.516Z","__v":0},{"_id":"673b6ba048c194f02ade2ab6","name":"iPad Air","price":599,"description":"Tablette Apple avec écran Retina","stock":8,"createdAt":"2024-11-18T16:30:24.526Z","__v":0},{"_id":"673b6ba048c194f02ade2ab8","name":"Montre connectée","price":199,"description":"Montre intelligente avec suivi d'activité","stock":25,"createdAt":"2024-11-18T16:30:24.535Z","__v":0},{"_id":"673b6ba048c194f02ade2aba","name":"Enceinte Bluetooth","price":79,"description":"Enceinte portable waterproof","stock":30,"createdAt":"2024-11-18T16:30:24.544Z","__v":0}]1
+**Test Inscription:**
+```bash
+curl -X POST http://localhost:3001/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
 ```
 
+**Explication des paramètres curl :**
+- `-X POST` : Utilise la méthode HTTP POST
+- `-H "Content-Type: application/json"` : Indique que tu envoies du JSON
+- `-d '{"email":"test@example.com","password":"password123"}'` : Corps de la requête en JSON
+- `\` : Continuation de ligne pour lisibilité
 
-- **Ajout d'un Produit au Panier**
+**Test Connexion:**
+```bash
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+```
 
+**Sauvegarder le token pour les tests suivants:**
+```bash
+TOKEN=$(curl -s -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}' \
+  | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+
+echo "Token sauvegardé: $TOKEN"
+```
+
+#### Product Service (Port 3000)
+
+**Vérifier les logs:**
+```bash
+docker logs ecommerce-products | tail -10
+```
+
+**Test Health Check:**
+```bash
+curl http://localhost:3000/api/health
+```
+
+**Test Liste des Produits (vide au début):**
+```bash
+curl http://localhost:3000/api/products
+```
+
+**Créer un produit de test:**
+```bash
+curl -X POST http://localhost:3000/api/products \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer efrei_super_pass" \
+  -d '{
+    "name": "Produit Test",
+    "price": 99.99,
+    "description": "Description test",
+    "stock": 10
+  }'
+```
+
+**Vérifier que le produit est créé:**
+```bash
+curl http://localhost:3000/api/products
+```
+
+#### Tester le Panier
+
+**Récupérer l'ID du produit créé:**
+```bash
+PRODUCT_ID=$(curl -s http://localhost:3000/api/products | grep -o '"_id":"[^"]*' | head -1 | cut -d'"' -f4)
+echo "Product ID: $PRODUCT_ID"
+```
+
+**Ajouter au panier:**
 ```bash
 curl -X POST http://localhost:3000/api/cart/add \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer efrei_super_pass" \
   -d '{
-    "userId": "673b6b2c0252fd5bfe997dac",
-    "productId": "673b6ba048c194f02ade2aba",
+    "userId": "test-user-id",
+    "productId": "'$PRODUCT_ID'",
     "quantity": 2
-  }'  
+  }'
 ```
 
-
-```json
-{"userId":"673b6b2c0252fd5bfe997dac","items":[{"productId":{"_id":"673b6ba048c194f02ade2aba","name":"Enceinte Bluetooth","price":79,"description":"Enceinte portable waterproof","stock":30,"createdAt":"2024-11-18T16:30:24.544Z","__v":0},"quantity":1,"_id":"673b6f7f48c194f02ade2ad0"}],"_id":"673b6f7f48c194f02ade2acf","updatedAt":"2024-11-18T16:46:55.284Z","__v":0}
+**Voir le panier:**
+```bash
+curl http://localhost:3000/api/cart \
+  -H "Authorization: Bearer efrei_super_pass" \
+  -H "userId: test-user-id"
 ```
 
-#### Order Service
+#### Order Service (Port 3002)
 
-- **Passation d'une Commande**
+**Vérifier les logs:**
+```bash
+docker logs ecommerce-orders | tail -10
+```
 
+**Test Health Check:**
+```bash
+curl http://localhost:3002/api/health
+```
 
+**Créer une commande (utiliser le token Auth et Product ID):**
 ```bash
 curl -X POST http://localhost:3002/api/orders \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzNiNmIyYzAyNTJmZDViZmU5OTdkYWMiLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJpYXQiOjE3MzE5NDczNDYsImV4cCI6MTczMjAzMzc0Nn0.RcwtvVyp6gw15Zs8addBS25FzuqpqZmxp7OqwglFBG4" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "products": [{
-      "productId": "673b6ba048c194f02ade2aba",
+      "productId": "'$PRODUCT_ID'",
       "quantity": 1
     }],
     "shippingAddress": {
-      "street": "123 Test St",
+      "street": "123 Test Street",
       "city": "Test City",
       "postalCode": "12345"
     }
   }'
 ```
 
-
-```json
-{"userId":"673b6b2c0252fd5bfe997dac","products":[{"productId":"673b6ba048c194f02ade2aba","name":"Enceinte Bluetooth","price":79,"quantity":1,"_id":"673b70050a40d45c0f920818"}],"totalAmount":79,"status":"pending","shippingAddress":{"street":"123 Test St","city":"Test City","postalCode":"12345"},"_id":"673b70050a40d45c0f920817","createdAt":"2024-11-18T16:49:09.281Z","__v":0}
-```
-
-
-- **Consultation de l'Historique des Commandes**
-
+**Voir les commandes:**
 ```bash
-  curl -X GET http://localhost:3002/api/orders \
-       -H "Authorization: Bearer <JWT_TOKEN>"
+curl http://localhost:3002/api/orders \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
+#### Frontend (Port 8080)
+
+**Vérifier les logs:**
+```bash
+docker logs ecommerce-frontend | tail -10
+```
+
+**Test accès frontend:**
+```bash
+curl -I http://localhost:8080
+```
+
+**Test accès frontend avec IP directe:**
+```bash
+curl -I http://172.18.0.6:8080/
+```
+
+### Tests HTTPS (Production)
+
+#### Configuration SSL active avec IP 192.168.100.40
+
+**Se connecter avec tes identifiants:**
+```bash
+TOKEN=$(curl -s -X POST http://192.168.100.40/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@email.com","password":"esgi123456"}' \
+  | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+echo "Token récupéré: ${TOKEN:0:20}..."
+```
+
+**Voir toutes tes commandes:**
+```bash
+curl -s http://192.168.100.40/api/orders \
+  -H "Authorization: Bearer $TOKEN" | jq '.'
+```
+
+**Dans la réponse JSON, l'ID complet de ta commande est :**
 ```json
-[{"shippingAddress":{"street":"123 Test St","city":"Test City","postalCode":"12345"},"_id":"673b70050a40d45c0f920817","userId":"673b6b2c0252fd5bfe997dac","products":[{"productId":"673b6ba048c194f02ade2aba","name":"Enceinte Bluetooth","price":79,"quantity":1,"_id":"673b70050a40d45c0f920818"}],"totalAmount":79,"status":"pending","createdAt":"2024-11-18T16:49:09.281Z","__v":0}]
+"_id": "686e72fe49f64b39c85f5e24"
 ```
 
----
+**Gestion des statuts de commande:**
+```bash
+# Utiliser l'ID complet de ta commande
+ORDER_ID="686e72fe49f64b39c85f5e24"  # Remplace par l'ID réel si différent
 
-## Comment Exécuter le Projet
+# Confirmer la commande
+curl -X PATCH http://192.168.100.40/api/orders/${ORDER_ID}/status \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"status": "confirmed"}'
 
-### Déploiement Manuel avec PM2 pour la Pré-production
+# Marquer comme expédiée
+curl -X PATCH http://192.168.100.40/api/orders/${ORDER_ID}/status \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"status": "shipped"}'
 
-1. **Prérequis** :
+# Marquer comme livrée
+curl -X PATCH http://192.168.100.40/api/orders/${ORDER_ID}/status \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"status": "delivered"}'
+```
 
-   - **Node.js** et **npm** installés sur votre machine.
-   - **MongoDB** installé et en cours d'exécution localement.
-   - **Git** pour cloner le dépôt.
-   - **PM2** installé globalement.
+**Statuts possibles :**
+- `pending` → En attente
+- `confirmed` → Confirmée
+- `shipped` → Expédiée
+- `delivered` → Livrée
+- `cancelled` → Annulée
 
-2. **Cloner le Dépôt** :
+#### Tests HTTPS sécurisés
 
-   ```bash
-   git clone https://gitlab.com/vlaine1/e-commerce-vue.git
-   cd  /opt/e-commerce-vue
-   ```
+**Health checks via HTTPS:**
+```bash
+curl -k https://192.168.100.40/api/auth/health
+curl -k https://192.168.100.40/api/products/health
+curl -k https://192.168.100.40/api/orders/health
+```
 
-3. **Exécuter le Script de Déploiement** :
+**Test d'inscription via HTTPS:**
+```bash
+curl -k -X POST https://192.168.100.40/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+```
 
-   ```bash
-   ./scripts/deploy.sh
-   ```
+**Test de connexion via HTTPS:**
+```bash
+TOKEN_HTTPS=$(curl -k -s -X POST https://192.168.100.40/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@email.com","password":"esgi123456"}' \
+  | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+echo "Token HTTPS: ${TOKEN_HTTPS:0:20}..."
+```
 
-4. **Initialisation des Données** :
+**Vérification du certificat SSL:**
+```bash
+openssl s_client -connect 192.168.100.40:443 -servername localhost
+```
 
-   ```bash
-   ./scripts/init-products.sh
-   ```
+**Test de redirection HTTP vers HTTPS:**
+```bash
+curl -I http://192.168.100.40  # Devrait rediriger vers HTTPS
+```
 
-5. **Accès à l'Application** :
 
-   - Ouvrez votre navigateur et accédez à `http://localhost:8080`.
 
-### Déploiement avec Docker et Docker Compose
+## Pipeline GitLab CI/CD
 
-1. **Prérequis** :
+### Branches et Workflow
 
-   - **Docker** et **Docker Compose** installés sur votre machine.
-   - **Git** pour cloner le dépôt.
+- **develop** : Environnement de développement, déploiement automatique
+- **main** : Environnement de production, déploiement manuel
+- **feature/** : Branches de fonctionnalités, tests uniquement
+- **hotfix/** : Corrections urgentes, déploiement rapide
 
-2. **Cloner le Dépôt** :
+### Jobs du Pipeline
 
-   ```bash
-   git clone <URL_DU_DÉPÔT>
-   cd <NOM_DU_PROJET>
-   ```
+1. **validate** : Vérification de la structure du projet
+2. **build** : Construction des images Docker pour chaque service
+3. **test** : Tests unitaires et d'intégration
+4. **security** : Scan de sécurité avec Trivy
+5. **integration** : Tests d'intégration complets
+6. **deploy** : Déploiement automatique (develop) ou manuel (main)
 
-3. **Construire et Démarrer les Conteneurs** :
+### Variables GitLab CI/CD Required
 
-   ```bash
-   docker-compose up --build
-   ```
+```
+CI_REGISTRY_IMAGE: Registry Docker GitLab
+JWT_SECRET: Secret pour les tokens JWT
+MONGO_ROOT_USERNAME: Utilisateur MongoDB
+MONGO_ROOT_PASSWORD: Mot de passe MongoDB  
+IMAGE_TAG: Tag des images (auto ou latest)
+```
 
-4. **Initialisation des Données** :
+## Monitoring et Logs
 
-   ```bash
-   ./scripts/init-products.sh
-   ```
+### Logs des services
+```bash
+# Logs en temps réel (développement)
+docker compose logs -f
 
-5. **Accès à l'Application** :
+# Logs par service
+docker compose logs -f frontend
+docker compose logs -f auth-service
+docker compose logs -f product-service  
+docker compose logs -f order-service
 
-   - Ouvrez votre navigateur et accédez à `http://localhost:8080`.
+# Logs production
+docker compose -f docker-compose.prod.yml logs -f
 
-### Déploiement en Production avec Docker Swarm
+# Logs avec timestamps
+docker compose logs -f -t
+```
 
-1. **Prérequis** :
+### Métriques et surveillance
+```bash
+# Statut des conteneurs
+docker compose ps
 
-   - **Docker** installé sur le serveur de production.
-   - Accès SSH au serveur.
+# Utilisation des ressources
+docker stats
 
-2. **Initialiser Docker Swarm** :
+# Espace disque
+docker system df
 
-   ```bash
-   docker swarm init
-   ```
+# Nettoyage
+docker system prune -f
+```
 
-3. **Déployer la Stack en Production** :
+## Résolution des Problèmes Courants
 
-   ```bash
-   docker stack deploy -c docker-compose.prod.yml e-commerce
-   ```
+### Problèmes de ports
+```bash
+# Vérifier les ports occupés
+sudo netstat -tulpn | grep :3000
+sudo netstat -tulpn | grep :3001
+sudo netstat -tulpn | grep :3002
+sudo netstat -tulpn | grep :8080
 
-4. **Vérifier le Déploiement** :
+# Libérer un port
+sudo kill -9 $(sudo lsof -t -i:3000)
+```
 
-   ```bash
-   docker stack services e-commerce
-   ```
+### Problèmes de permissions Docker
+```bash
+# Ajouter l'utilisateur au groupe docker
+sudo usermod -aG docker $USER
+newgrp docker
 
-5. **Accès à l'Application** :
+# Redémarrer le service Docker
+sudo systemctl restart docker
+```
 
-   - Accédez à l'adresse IP ou au domaine de votre serveur suivi du port approprié.
+### Problèmes de base de données
+```bash
+# Réinitialiser les données MongoDB
+docker compose down -v
+docker compose up -d
 
-### Automatisation avec GitLab CI/CD
+# Connexion à MongoDB pour debug
+docker exec -it mongodb-auth mongo -u admin -p password
+```
 
-1. **Configuration des Pipelines CI/CD** :
+### Problèmes de certificats SSL
+```bash
+# Vérifier les permissions
+ls -la ssl/
+sudo chown -R $USER:$USER ssl/
+sudo chmod 600 ssl/server.key
+sudo chmod 644 ssl/server.crt
 
-   - Les pipelines sont définis dans les fichiers `build-*.yml` situés dans chaque répertoire de service.
-   - Assurez-vous que les variables CI/CD sont correctement configurées dans GitLab.
+# Tester le certificat
+openssl x509 -in ssl/server.crt -text -noout
+```
 
-2. **Déclencher les Pipelines** :
+## Performance et Optimisation
 
-   - Les pipelines sont déclenchés automatiquement lors des commits sur les branches `develop` et `main`.
+### Images Docker
+- Utilisation d'images Alpine Linux (plus légères)
+- Multi-stage builds pour réduire la taille finale
+- .dockerignore optimisé pour exclure les fichiers inutiles
+- Cache des layers Docker pour builds plus rapides
 
-3. **Surveillance des Pipelines** :
+### Base de données
+- Index MongoDB pour améliorer les performances
+- Connection pooling configuré
+- Limitation des connexions par service
 
-   - Utilisez l'interface GitLab pour surveiller l'exécution des pipelines, vérifier les rapports de sécurité et consulter les résultats des tests.
+### Frontend
+- Build optimisé avec Vite
+- Compression gzip activée
+- Cache des assets statiques
+- Lazy loading des composants
+
+## Sécurité
+
+### Authentification
+- JWT avec expiration configurée
+- Hachage bcrypt pour les mots de passe
+- Protection CSRF activée
+- Rate limiting sur les endpoints sensibles
+
+### Container Security
+- Utilisateurs non-root dans tous les conteneurs
+- Secrets Docker pour les données sensibles
+- Scan de sécurité automatique avec Trivy
+- Images mises à jour régulièrement
+
+### Network Security
+- Réseau Docker isolé pour les services
+- Ports exposés uniquement si nécessaire
+- SSL/TLS en production
+- Pare-feu configuré sur le serveur
+
+## Support et Contact
+
+- **Repository GitHub** : https://github.com/Savita2618/e-commerce-vue
+- **Repository GitLab** : https://gitlab.com/Savita2618/e-commerce-docker-esgi
+- **Projet ESGI** : M1 Systèmes, Réseaux et Cloud Computing
+- **Année** : 2024-2025

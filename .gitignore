@@ -138,7 +138,7 @@ error.log
 access.log
 
 # Monitoring data
-monitoring/
+#monitoring/
 grafana-data/
 prometheus-data/
 

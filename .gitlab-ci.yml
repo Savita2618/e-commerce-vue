@@ -1,6 +1,5 @@
 # ===================================
-# GitLab CI/CD Principal - AVEC TEMPLATES ESGI
-# Version refactorisée conforme aux exigences
+# GitLab CI/CD Principal - AVEC TEMPLATES
 # ===================================
 
 variables:
@@ -17,7 +16,7 @@ stages:
   - summary
 
 # ===================================
-# INCLUSION DES TEMPLATES ESGI
+# INCLUSION DES TEMPLATES 
 # ===================================
 include:
   - local: 'ci/build-auth.yml'
