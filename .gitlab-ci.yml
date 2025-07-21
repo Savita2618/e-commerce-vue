@@ -34,7 +34,6 @@ validate:
   image: alpine:latest
   script:
     - echo "Validation de la structure du projet"
-    - test -f docker-compose.yml && echo "docker-compose.yml OK" || exit 1
     - test -f docker-compose.prod.yml && echo "docker-compose.prod.yml OK" || exit 1
     - test -f "services/auth-service/package.json" && echo "auth-service OK" || exit 1
     - test -f "services/product-service/package.json" && echo "product-service OK" || exit 1

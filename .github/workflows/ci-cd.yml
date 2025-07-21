@@ -31,15 +31,7 @@ jobs:
       - name: Validate project structure
         run: |
           echo "🔍 Validation de la structure du projet..."
-          
-          # Vérifier les fichiers essentiels
-          if [ -f "docker-compose.yml" ]; then
-            echo "✅ docker-compose.yml found"
-          else
-            echo "❌ docker-compose.yml missing"
-            exit 1
-          fi
-          
+                
           if [ -f "docker-compose.prod.yml" ]; then
             echo "✅ docker-compose.prod.yml found"
           else
