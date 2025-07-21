@@ -1,0 +1,57 @@
+# ===================================
+# Template Build - Product Service
+# ===================================
+
+.build-template-product:
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    SERVICE_NAME: product-service
+    SERVICE_PATH: services/product-service
+    DOCKERFILE_PATH: services/product-service/Dockerfile
+  before_script:
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - apk add --no-cache git
+  script:
+    - echo "🏗️ Build de l'image Docker pour $SERVICE_NAME..."
+    
+    # Afficher les informations de build
+    - echo "📦 Service: $SERVICE_NAME"
+    - echo "📁 Path: $SERVICE_PATH"
+    - echo "🐳 Dockerfile: $DOCKERFILE_PATH"
+    - echo "🏷️ Tag: $IMAGE_TAG"
+    - echo "🏷️ Latest: $IMAGE_LATEST"
+    
+    # Vérifier la structure
+    - ls -la $SERVICE_PATH/
+    - cat $SERVICE_PATH/package.json | head -10
+    
+    # Build de l'image avec tags multiples
+    - docker build 
+      --target production
+      --cache-from $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:latest
+      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_TAG
+      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$CI_COMMIT_SHORT_SHA
+      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_LATEST
+      --file $DOCKERFILE_PATH
+      $SERVICE_PATH/
+    
+    # Push des images
+    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_TAG
+    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_LATEST
+    
+    - echo "✅ Build terminé pour $SERVICE_NAME"
+  after_script:
+    - echo "🧹 Nettoyage des images locales..."
+    - docker system prune -f || true
+  cache:
+    key: $CI_COMMIT_REF_SLUG-product
+    paths:
+      - .docker/
+  artifacts:
+    when: always
+    paths:
+      - $SERVICE_PATH/package.json
+    expire_in: 1 hour

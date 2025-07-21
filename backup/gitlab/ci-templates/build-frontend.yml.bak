@@ -1,0 +1,62 @@
+# ===================================
+# Template Build - Frontend Vue.js
+# ===================================
+
+.build-template-frontend:
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    SERVICE_NAME: frontend
+    SERVICE_PATH: frontend
+    DOCKERFILE_PATH: frontend/Dockerfile
+  before_script:
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - apk add --no-cache git
+  script:
+    - echo "🏗️ Build de l'image Docker pour $SERVICE_NAME..."
+    
+    # Afficher les informations de build
+    - echo "📦 Service: $SERVICE_NAME"
+    - echo "📁 Path: $SERVICE_PATH"
+    - echo "🐳 Dockerfile: $DOCKERFILE_PATH"
+    - echo "🏷️ Tag: $IMAGE_TAG"
+    - echo "🏷️ Latest: $IMAGE_LATEST"
+    
+    # Vérifier la structure
+    - ls -la $SERVICE_PATH/
+    - cat $SERVICE_PATH/package.json | head -10
+    - ls -la $SERVICE_PATH/src/ || echo "Pas de dossier src/"
+    
+    # Build de l'image avec tags multiples
+    - docker build 
+      --target production
+      --cache-from $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:latest
+      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_TAG
+      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$CI_COMMIT_SHORT_SHA
+      --tag $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_LATEST
+      --build-arg VITE_AUTH_SERVICE_URL=$VITE_AUTH_SERVICE_URL
+      --build-arg VITE_PRODUCT_SERVICE_URL=$VITE_PRODUCT_SERVICE_URL
+      --build-arg VITE_ORDER_SERVICE_URL=$VITE_ORDER_SERVICE_URL
+      --file $DOCKERFILE_PATH
+      $SERVICE_PATH/
+    
+    # Push des images
+    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_TAG
+    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY/$PROJECT_NAME/$SERVICE_NAME:$IMAGE_LATEST
+    
+    - echo "✅ Build terminé pour $SERVICE_NAME"
+  after_script:
+    - echo "🧹 Nettoyage des images locales..."
+    - docker system prune -f || true
+  cache:
+    key: $CI_COMMIT_REF_SLUG-frontend
+    paths:
+      - .docker/
+  artifacts:
+    when: always
+    paths:
+      - $SERVICE_PATH/package.json
+      - $SERVICE_PATH/vite.config.js
+    expire_in: 1 hour

@@ -1,0 +1,179 @@
+services:
+  # ===================================
+  # BASES DE DONNÉES avec IPs fixes
+  # ===================================
+  
+  mongodb-auth:
+    image: mongo:4.4
+    container_name: mongodb-auth-prod
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-production_password_12345}
+      MONGO_INITDB_DATABASE: authdb
+    volumes:
+      - mongodb_auth_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      ecommerce-network:
+        ipv4_address: 192.168.100.10
+
+  mongodb-products:
+    image: mongo:4.4
+    container_name: mongodb-products-prod
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-production_password_12345}
+      MONGO_INITDB_DATABASE: productsdb
+    volumes:
+      - mongodb_products_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      ecommerce-network:
+        ipv4_address: 192.168.100.11
+
+  mongodb-orders:
+    image: mongo:4.4
+    container_name: mongodb-orders-prod
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-production_password_12345}
+      MONGO_INITDB_DATABASE: ordersdb
+    volumes:
+      - mongodb_orders_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      ecommerce-network:
+        ipv4_address: 192.168.100.12
+
+  # ===================================
+  # MICROSERVICES BACKEND - IMAGES GITLAB
+  # ===================================
+
+  auth-service:
+    image: registry.gitlab.com/savita2618/e-commerce-docker-esgi/auth-service:${IMAGE_TAG:-latest}
+    container_name: auth-service-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-production_password_12345}@192.168.100.10:27017/authdb?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-efrei_super_pass_production_secret}
+      CORS_ORIGIN: http://localhost:80
+    ports:
+      - "3001:3001"
+    networks:
+      ecommerce-network:
+        ipv4_address: 192.168.100.20
+    depends_on:
+      - mongodb-auth
+
+  product-service:
+    image: registry.gitlab.com/savita2618/e-commerce-docker-esgi/product-service:${IMAGE_TAG:-latest}
+    container_name: product-service-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-production_password_12345}@192.168.100.11:27017/productsdb?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-efrei_super_pass_production_secret}
+      CORS_ORIGIN: http://localhost:80
+    ports:
+      - "3000:3000"
+    networks:
+      ecommerce-network:
+        ipv4_address: 192.168.100.21
+    depends_on:
+      - mongodb-products
+
+  order-service:
+    image: registry.gitlab.com/savita2618/e-commerce-docker-esgi/order-service:${IMAGE_TAG:-latest}
+    container_name: order-service-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-production_password_12345}@192.168.100.12:27017/ordersdb?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-efrei_super_pass_production_secret}
+      PRODUCT_SERVICE_URL: http://192.168.100.21:3000
+      CORS_ORIGIN: http://localhost:80
+    ports:
+      - "3002:3002"
+    networks:
+      ecommerce-network:
+        ipv4_address: 192.168.100.22
+    depends_on:
+      - mongodb-orders
+      - product-service
+
+  # ===================================
+  # FRONTEND avec IP fixe
+  # ===================================
+
+  frontend:
+    image: registry.gitlab.com/savita2618/e-commerce-docker-esgi/frontend:${IMAGE_TAG:-latest}
+    container_name: frontend-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      VITE_AUTH_SERVICE_URL: /api/auth
+      VITE_PRODUCT_SERVICE_URL: /api/products
+      VITE_ORDER_SERVICE_URL: /api/orders
+    ports:
+      - "8080:8080"
+    networks:
+      ecommerce-network:
+        ipv4_address: 192.168.100.30
+    depends_on:
+      - auth-service
+      - product-service
+      - order-service
+
+  # ===================================
+  # REVERSE PROXY NGINX avec IP fixe
+  # ===================================
+
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: nginx-proxy-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      ecommerce-network:
+        ipv4_address: 192.168.100.40
+    depends_on:
+      - frontend
+      - auth-service
+      - product-service
+      - order-service
+
+# ===================================
+# RÉSEAUX PERSONNALISÉS
+# ===================================
+
+networks:
+  ecommerce-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24
+          gateway: 192.168.100.1
+
+# ===================================
+# VOLUMES
+# ===================================
+
+volumes:
+  mongodb_auth_data:
+    driver: local
+  mongodb_products_data:
+    driver: local
+  mongodb_orders_data:
+    driver: local

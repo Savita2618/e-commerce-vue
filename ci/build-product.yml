@@ -1,0 +1,18 @@
+build-product-service:
+  stage: build
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  before_script:
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+  script:
+    - echo "Build product-service"
+    - cd services/product-service
+    - PROJECT_NAME_LOWER=$(echo $CI_PROJECT_PATH | tr '[:upper:]' '[:lower:]')
+    - docker build -t $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$IMAGE_TAG -t $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest .
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:$IMAGE_TAG
+    - docker push $CI_REGISTRY/$PROJECT_NAME_LOWER/product-service:latest
+    - echo "Product-service build termine"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
