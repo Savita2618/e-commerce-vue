@@ -276,15 +276,10 @@ docker-compose -f docker-compose.prod.gitlab.yml up -d
 ./scripts/deploy.sh
 
 # Le script deploy.sh gère automatiquement :
-# - Sélection du registre (local/gitlab)
 # - Configuration des variables d'environnement
 # - Démarrage des services en production
 # - Tests de santé des services
 # - Affichage des logs et statuts
-
-# Méthode 2 : Manuel
-# Configuration des secrets Docker
-./scripts/init-secrets.sh
 
 # Démarrage en production
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
@@ -318,7 +313,6 @@ docker stack services e-commerce
 ./scripts/deploy.sh
 
 # Le script gère automatiquement :
-# - Détection du type de registre (local/gitlab)
 # - Configuration des variables d'environnement
 # - Démarrage des services selon l'environnement
 # - Vérification de la santé des services
