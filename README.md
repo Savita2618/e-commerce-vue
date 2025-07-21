@@ -291,18 +291,6 @@ docker compose -f docker-compose.prod.yml ps
 ./scripts/monitoring.sh --env=prod
 ```
 
-#### Déploiement avec Docker Swarm (Bonus)
-
-```bash
-# Initialiser Docker Swarm
-docker swarm init
-
-# Déployer la Stack
-docker stack deploy -c docker-compose.prod.yml e-commerce
-
-# Vérifier le déploiement
-docker stack services e-commerce
-```
 
 ## Utilisation des Scripts
 
