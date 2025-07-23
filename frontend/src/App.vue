@@ -1,7 +1,7 @@
 <template>
   <div id="app">
     <header class="header">
-      <h1>E-TryHard</h1>
+      <h1>Delta.local - web</h1>
       <nav class="nav" v-if="isAuthenticated">
         <router-link to="/" class="nav-link">Produits</router-link>
         <router-link to="/cart" class="nav-link">
